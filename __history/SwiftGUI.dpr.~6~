@@ -1,0 +1,17 @@
+program SwiftGUI;
+
+uses
+  Forms,
+  SWG_FMain in 'SWG_FMain.pas' {fMain},
+  SWIFT_UPanel__ in 'SWIFT_UPanel__.pas',
+  SWIFT_UTypes in 'SWIFT_UTypes.pas',
+  Swift_UViewer in 'Swift_UViewer.pas' {fSwiftView: TFrame};
+
+{$R *.res}
+
+begin
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(TfMain, fMain);
+  Application.Run;
+end.

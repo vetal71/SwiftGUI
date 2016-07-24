@@ -1,0 +1,446 @@
+unit SWIFT_UPanel;
+
+interface
+
+uses Windows, Controls, Graphics, SysUtils, Classes, ExtCtrls, StdCtrls,
+     SWIFT_UTypes, VirtualTrees, SWIFT_UMsgFormat, SWIFT_UUtils, StrUtils,
+     RegularExpressions;
+
+
+const
+  cSequenceTags: array [0..10] of string = (
+    '15A', '15B', '15C', '15D', '15E', '15F', '15G', '15H', '15I', '16R', '16S');
+
+  const cSequence518: array [0..4] of string = (
+    'GENL', 'CONFDET', 'SETDET', 'OTHRPRTY', 'REPO');
+  const cSubSequence518: array [0..5] of string = (
+    'LINK', 'CONFPRTY', 'FIA', 'SETPRTY', 'CSHPRTY', 'AMT');
+
+type
+  TSwift_MVCPanel = class(TCustomPanel)
+  private
+    FPnlTop: TPanel;
+    FSenderEdit: TEdit;
+    FSenderLabel: TLabel;
+    FRecieverEdit: TEdit;
+    FRecieverLabel: TLabel;
+
+    FPnlEditor: TPanel;
+
+    FPnlView: TPanel;
+    FFieldLabel: TLabel;
+    FFieldEdit: TEdit;
+    FFieldMemo: TMemo;
+
+    FTrvItems: TMVCTreeView;
+
+    FIsMultiLine: Boolean;
+
+    { Swift сообщение }
+    FSwiftMessage: TSwiftMessage;
+    FMsgText: string;
+    FMsgType: Integer;
+
+    procedure SetMsgText(aValue: string);
+    function GetMsgText: string;
+
+    procedure InitControls;
+    procedure FillData;
+    function BuildTree(aBlock: TSwiftBlock4): TSwiftTree;
+
+    { События VirtualTreeView }
+    procedure TreeViewChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
+    procedure InitTreeNode(Sender: TBaseVirtualTree; ParentNode,
+      Node: PVirtualNode; var InitialStates: TVirtualNodeInitStates);
+    procedure MeasureItem(Sender: TBaseVirtualTree;
+      TargetCanvas: TCanvas; Node: PVirtualNode; var NodeHeight: Integer);
+    procedure PaintText(Sender: TBaseVirtualTree;
+      const TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
+      TextType: TVSTTextType);
+    procedure BeforeCellPaint(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
+      Node: PVirtualNode; Column: TColumnIndex; CellPaintMode: TVTCellPaintMode;
+      CellRect: TRect; var ContentRect: TRect);
+
+    procedure UpdateFromNode;
+    function FocusedNode: TSwiftNode;
+
+  protected
+    procedure CreateWnd; override;
+  public
+    constructor Create(aOwner:TComponent); override;
+
+    property MsgText: string read GetMsgText write SetMsgText;
+    property MsgType: Integer read FMsgType write FMsgType;
+
+  end;
+
+implementation
+
+uses
+  Math, Dialogs;
+
+
+procedure TSwift_MVCPanel.PaintText(Sender: TBaseVirtualTree;
+  const TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
+  TextType: TVSTTextType);
+var
+  MVCNode: TSwiftNode;
+begin
+  MVCNode := FTrvItems.MVCNode[Node];
+  if not Assigned(MVCNode) then Exit;
+  if MVCNode.Editable then
+    TargetCanvas.Font.Color := clWhite;
+  if (vsSelected in Node.States) and (Sender.Focused) then
+    TargetCanvas.Font.Color := clHighlightText;
+end;
+
+//procedure (Sender: TBaseVirtualTree; TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex; CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect)
+
+procedure TSwift_MVCPanel.BeforeCellPaint(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
+  Node: PVirtualNode; Column: TColumnIndex; CellPaintMode: TVTCellPaintMode;
+  CellRect: TRect; var ContentRect: TRect);
+var
+  MVCNode: TSwiftNode;
+begin
+  MVCNode := FTrvItems.MVCNode[Node];
+  if not Assigned(MVCNode) then Exit;
+  if MVCNode.Editable then
+    with TargetCanvas do
+    begin
+      Brush.Color := clMoneyGreen;
+      FillRect(CellRect);
+    end;
+end;
+
+//------------------------------------------------------------------------------
+// Включение/Выключение многострочного режима
+//------------------------------------------------------------------------------
+procedure TSwift_MVCPanel.InitTreeNode(Sender: TBaseVirtualTree; ParentNode,
+  Node: PVirtualNode; var InitialStates: TVirtualNodeInitStates);
+var
+  MVCNode: TSwiftNode;
+begin
+  MVCNode := FTrvItems.MVCNode[Node];
+  if not Assigned(MVCNode) then Exit;
+  if MVCNode.MultiLine then
+    Include(InitialStates, ivsMultiline)
+  else begin
+    Exclude(InitialStates, ivsMultiline);
+    // НЕ ЗАБЫВАЙТЕ ВЫПОЛНЯТЬ ЭТО:
+    Node.States := Node.States - [vsMultiline];
+    // Это выключит многострочность для узлов, где она раньше была.
+  end;
+end;
+
+//---------------------------------------------------------------------------
+// Подсчет высоты узлов в соответствии с высотой переносимого текста
+//---------------------------------------------------------------------------
+procedure TSwift_MVCPanel.MeasureItem(Sender: TBaseVirtualTree;
+  TargetCanvas: TCanvas; Node: PVirtualNode; var NodeHeight: Integer);
+var
+  MVCNode: TSwiftNode;
+begin
+  MVCNode := FTrvItems.MVCNode[Node];
+  if not Assigned(MVCNode) then Exit;
+  if MVCNode.MultiLine then
+  begin
+    NodeHeight := FTrvItems.ComputeNodeHeight(TargetCanvas, Node, 0) + 4;
+    NodeHeight := Max(18, NodeHeight);
+  end
+  else
+    NodeHeight := 18;
+end;
+
+procedure TSwift_MVCPanel.FillData;
+begin
+  // Отправитель и Получатель
+  FSenderEdit.Text   := FSwiftMessage.Block1.Sender;
+  FRecieverEdit.Text := FSwiftMessage.Block2.Reciever;
+
+  // строим дерево полей
+  FTrvItems.Tree := BuildTree(FSwiftMessage.Block4);
+  FTrvItems.FullExpand(nil);
+end;
+
+function TSwift_MVCPanel.BuildTree(aBlock: TSwiftBlock4): TSwiftTree;
+var
+  eTmpTag: TSwiftTag;
+  I: Integer;
+  eNode, eSeqNode, eSubNode, eRoot: TSwiftNode;
+  eIsEditable: Boolean;
+
+  function IsEditable(aName: string): Boolean;
+  var
+    I: Integer;
+  begin
+    Result := False;
+    if Length(cEditableFields) = 0 then Exit;
+
+//    ShowMessageFmt('Поле: %s', [aName]);
+
+    for I := 0 to High(cEditableFields) do
+      if TRegEx.IsMatch(aName, cEditableFields[ I ]) then begin
+        Result := True;
+        Break;
+      end;
+  end;
+
+  function AddNode(aParent: TSwiftNode; aTag: TSwiftTag;
+    aEditable: Boolean = False): TSwiftNode;
+  begin
+    Result := aParent.CreateChild;
+    with Result do begin
+      TagName    := aTag.Name;
+      TagValue := aTag.Value;
+      FIsMultiLine := Pos(#$D#$A, aTag.Value) > 0;
+      MultiLine  := FIsMultiLine;
+      Editable   := IsEditable(eTmpTag.FullName);
+      Hint       := aTag.FullName;
+    end;
+  end;
+
+begin
+  Result:=TSwiftTree.Create;
+  eSeqNode := nil;
+  eSubNode  := nil;
+
+  with Result do begin
+    aBlock.RecreateTags;
+    for I := 0 to aBlock.Count - 1 do begin
+      eTmpTag := aBlock.Tags[ I ];
+
+      // последовательность в корень
+      if MatchText(eTmpTag.Name, cSequenceTags) then begin
+        // начало последовательности
+        if (MatchText(eTmpTag.Name, ['15A', '15B', '16R'])) then begin
+          if (eSeqNode <> nil) then begin
+            eSubNode := AddNode(eSeqNode, eTmpTag);
+          end else begin
+            eSeqNode := AddNode(Root, eTmpTag);
+          end;
+        end;
+        // конец последовательности
+        if (SameText(eTmpTag.Name, '16S')) then begin
+          if (eSubNode <> nil) then begin
+            // добавим
+            eNode    := AddNode(eSubNode, eTmpTag);
+            eSubNode := nil;
+          end else if (eSeqNode <> nil) then begin
+            eNode    := AddNode(eSeqNode, eTmpTag);
+            eSeqNode := nil;
+          end;
+        end;
+      end else begin
+
+        if (eSubNode <> nil) then begin
+          // добавим
+          eNode    := AddNode(eSubNode, eTmpTag);
+        end else if (eSeqNode <> nil) then begin
+          eNode    := AddNode(eSeqNode, eTmpTag);
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure TSwift_MVCPanel.SetMsgText(aValue: string);
+begin
+  FMsgText := aValue;
+  if FMsgText > '' then begin
+    FSwiftMessage := TSwift.Load(FMsgType, FMsgText);
+    if Assigned(FSwiftMessage) then
+      FillData;
+  end;
+end;
+
+procedure TSwift_MVCPanel.UpdateFromNode;
+begin
+  if FocusedNode = nil then begin
+    FFieldLabel.Caption := '';
+    FFieldLabel.Enabled := False;
+    FFieldEdit.Text     := '';
+    FFieldEdit.Enabled  := False;
+    FPnlEditor.Visible  := False;
+  end else begin
+    FPnlEditor.Visible  := True;
+    FFieldLabel.Caption := FocusedNode.TagName;
+    FFieldLabel.Enabled := True;
+    if FocusedNode.MultiLine then begin
+      FFieldMemo.Text   := FocusedNode.TagValue;
+      FFieldMemo.Visible  := True;
+      FFieldEdit.Visible  := False;
+      FFieldMemo.Enabled  := FocusedNode.Editable;
+    end else begin
+      FFieldEdit.Text     := FocusedNode.TagValue;
+      FFieldMemo.Visible  := False;
+      FFieldEdit.Visible  := True;
+      FFieldEdit.Enabled  := FocusedNode.Editable;
+    end;
+  end;
+end;
+
+function TSwift_MVCPanel.FocusedNode: TSwiftNode;
+begin
+  with FTrvItems do
+    if FocusedNode <> nil
+      then Result := MVCNode[FocusedNode]
+      else Result := nil;
+end;
+
+procedure TSwift_MVCPanel.TreeViewChange;
+begin
+  // при изменении узла дерева
+  UpdateFromNode;
+end;
+
+function TSwift_MVCPanel.GetMsgText: string;
+begin
+  { TODO: Собираем текст по дереву }
+  Result := FMsgText;
+end;
+
+procedure TSwift_MVCPanel.InitControls;
+begin
+  { панель Отправитель - Получатель }
+  FpnlTop:=TPanel.Create(Self);
+  with FpnlTop do begin
+    Parent     := Self;
+    Height     := 60;
+    Align      := alTop;
+    BevelOuter := bvNone;
+    BevelInner := bvLowered;
+  end;
+  { Отправитель }
+  FSenderLabel := TLabel.Create(Self);
+  with FSenderLabel do begin
+    Parent  := FPnlTop;
+    Caption := 'Отправитель:';
+    SetBounds( 15, 10, 80, 13 );
+  end;
+  FSenderEdit := TEdit.Create(Self);
+  with FSenderEdit do begin
+    Parent := FPnlTop;
+    SetBounds( FSenderLabel.Left + FSenderLabel.Width + 5,
+               7, 250, 21 );
+    Hint := 'Swift код отправителя сообщения';
+    Enabled := False;
+  end;
+  { Получатель }
+  FRecieverLabel := TLabel.Create(Self);
+  with FRecieverLabel do begin
+    Parent  := FPnlTop;
+    Caption := 'Получатель:';
+    SetBounds( 15, 34, 80, 13 );
+  end;
+  FRecieverEdit := TEdit.Create(Self);
+  with FRecieverEdit do begin
+    Parent := FPnlTop;
+    SetBounds( FRecieverLabel.Left + FRecieverLabel.Width + 5,
+               31, 250, 21 );
+    Hint := 'Swift код получателя сообщения';
+    Enabled := False;
+  end;
+
+  { Панель редактора }
+  FPnlEditor := TPanel.Create(Self);
+  with FPnlEditor do begin
+    Parent     := Self;
+    Height     := 100;
+    Align      := alBottom;
+    BevelOuter := bvNone;
+    BevelInner := bvLowered;
+    Visible    := False;
+  end;
+  FFieldLabel := TLabel.Create(Self);
+  with FFieldLabel do begin
+    Parent  := FPnlEditor;
+    Caption := 'Имя поля:';
+    SetBounds( 15, 10, 80, 13 );
+  end;
+  FFieldEdit := TEdit.Create(Self);
+  with FFieldEdit do begin
+    Parent := FPnlEditor;
+    SetBounds( FFieldLabel.Left + FFieldLabel.Width + 5,
+               7, 250, 21 );
+    Enabled := True;
+    Visible := True;
+  end;
+  FFieldMemo := TMemo.Create(Self);
+  with FFieldMemo do begin
+    Parent := FPnlEditor;
+    SetBounds( FFieldLabel.Left + FFieldLabel.Width + 5,
+               7, FPnlEditor.Width - ( FFieldLabel.Left + FFieldLabel.Width + 5) - 20, 80 );
+    ScrollBars := ssVertical;
+    Anchors := [akTop, akLeft, akRight];
+    Enabled := True;
+    Visible := False;
+  end;
+
+  FPnlView := TPanel.Create(Self);
+  with FPnlView do begin
+    Parent     := Self;
+    Align      := alClient;
+    BevelOuter := bvNone;
+    BevelInner := bvLowered;
+  end;
+
+  FtrvItems := TMVCTreeView.Create(Self);
+  with FtrvItems do  begin
+    Parent := Self;
+    Align  := alClient;
+  end;
+end;
+
+constructor TSwift_MVCPanel.Create(aOwner:TComponent);
+begin
+  inherited Create(aOwner);
+  BevelOuter:=bvNone;
+  Caption:='';
+  { Создание контролов }
+  InitControls;
+
+  { События }
+  with FTrvItems do begin
+    OnChange          := TreeViewChange;
+    OnInitNode        := InitTreeNode;
+    OnMeasureItem     := MeasureItem;
+    OnPaintText       := PaintText;
+    OnBeforeCellPaint := BeforeCellPaint;
+  end;
+end;
+
+procedure TSwift_MVCPanel.CreateWnd;
+begin
+  inherited CreateWnd;
+
+  with FtrvItems, TreeOptions do begin
+    PaintOptions:=PaintOptions+[toShowButtons,        // display collapse/expand
+                      toShowHorzGridLines,  // display horizontal lines
+                      toShowRoot,           // show lines also at root level
+                      toShowTreeLines,      // display tree lines to show
+                                            // hierarchy of nodes
+                                            // buttons left to a node
+                      toShowVertGridLines]; // display vertical lines
+                                            // (depending on columns) to
+                                            // simulate a grid
+    MiscOptions      := MiscOptions + [toEditable];
+    SelectionOptions := SelectionOptions + [toExtendedFocus];
+                                            // to simulate a grid
+    with Header do begin
+      Height     := 18;
+      Options    := Options + [hoVisible];
+      Background := clBtnFace;
+      AutoSize   := True;
+      with Columns.Add do begin
+        Text  := 'Имя поля';
+        Width := 100;
+      end;
+      with Columns.Add do begin
+        Text  := 'Значение';
+        Width := 300;
+      end;
+    end;
+  end;
+end;
+
+end.

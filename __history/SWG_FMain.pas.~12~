@@ -1,0 +1,69 @@
+unit SWG_FMain;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, ComCtrls, ExtCtrls, StdCtrls;
+
+type
+  TfMain = class(TForm)
+    pnlButtons: TPanel;
+    pnlMain: TPanel;
+    pgcMain: TPageControl;
+    tsText: TTabSheet;
+    tsView: TTabSheet;
+    mmoText: TMemo;
+    scbView: TScrollBox;
+    btnLoad: TButton;
+    btnEditor: TButton;
+    pnlButtonView: TPanel;
+    btnApply: TButton;
+    btnCancel: TButton;
+    btnValidate: TButton;
+    procedure btnLoadClick(Sender: TObject);
+  private
+    function CreateSwiftView: Boolean;
+  public
+    { Public declarations }
+  end;
+
+var
+  fMain: TfMain;
+
+implementation
+
+uses
+  SWIFT_UPanel;
+
+{$R *.dfm}
+
+function TfMain.CreateSwiftView: Boolean;
+var
+  eSwiftPnl: TSwiftViewPanel;
+begin
+  eSwiftPnl := TSwift_MVCPanel.Create(Owner);
+  with eSwiftPnl do begin
+    Parent := scbMain;
+    Align  := alClient;
+    MsgType := Entity.MsgType;
+    MsgText := Entity.MsgText;
+  end;
+  Result := True;
+end;
+
+
+procedure TfMain.btnLoadClick(Sender: TObject);
+begin
+  // загрузка файла
+  with TOpenDialog.Create(Application) do begin
+    Filter := 'Text|*.txt';
+    InitialDir := ExtractFilePath( ParamStr(0) + 'Samples\' );
+    if Execute then
+      mmoText.Lines.LoadFromFile(FileName);
+
+    Free;
+  end;
+end;
+
+end.

@@ -1,0 +1,296 @@
+unit Swift_UViewer;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, StdCtrls, ExtCtrls, VirtualTrees, SWIFT_UMsgFormat, SWIFT_UUtils;
+
+const
+  cSequenceTags: array [0..10] of string = (
+    '15A', '15B', '15C', '15D', '15E', '15F', '15G', '15H', '15I', '16R', '16S');
+
+type
+
+  TSwiftData = packed record
+    TagName, TagValue: String;
+    Editable, MultiLine: Boolean;
+  end;
+  PSwiftData = ^TSwiftData;
+
+  TfSwiftView = class(TFrame)
+    pnlTop: TPanel;
+    pnlView: TPanel;
+    pnlEditor: TPanel;
+    lbl1: TLabel;
+    edtSender: TEdit;
+    lbl2: TLabel;
+    edtReciever: TEdit;
+    VST: TVirtualStringTree;
+    lblTagName: TLabel;
+    edtTagValue: TEdit;
+    mmoTagValue: TMemo;
+    procedure VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
+    procedure VSTGetText(Sender: TBaseVirtualTree; Node: PVirtualNode;
+      Column: TColumnIndex; TextType: TVSTTextType; var CellText: string);
+    procedure VSTInitNode(Sender: TBaseVirtualTree; ParentNode,
+      Node: PVirtualNode; var InitialStates: TVirtualNodeInitStates);
+    procedure VSTMeasureItem(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
+      Node: PVirtualNode; var NodeHeight: Integer);
+    procedure VSTGetNodeDataSize(Sender: TBaseVirtualTree;
+      var NodeDataSize: Integer);
+    procedure VSTPaintText(Sender: TBaseVirtualTree;
+      const TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
+      TextType: TVSTTextType);
+    procedure VSTBeforeCellPaint(Sender: TBaseVirtualTree;
+      TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
+      CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
+  private
+    { Swift сообщение }
+    FSwiftMessage: TSwiftMessage;
+    FMsgText: string;
+    FMsgType: Integer;
+
+    { Getters and Setters }
+    procedure SetMsgText(aValue: string);
+    function GetMsgText: string;
+
+    procedure UpdateFromNode;
+    procedure FillData;
+    procedure BuildTree(aBlock: TSwiftBlock4);
+    function GetNodeData(const ANode: PVirtualNode): PSwiftData;
+  public
+    procedure Init;
+    property MsgText: string read GetMsgText write SetMsgText;
+    property MsgType: Integer read FMsgType write FMsgType;
+  end;
+
+implementation
+
+uses
+  Math, RegularExpressions, StrUtils;
+
+{$R *.dfm}
+
+function TfSwiftView.GetNodeData(const ANode: PVirtualNode): PSwiftData;
+begin
+  // Для более короткого доступа к данным узла дерева
+  Result := VST.GetNodeData(Anode);
+end;
+
+procedure TfSwiftView.Init;
+begin
+  VST.NodeDataSize := SizeOf(TSwiftData);
+end;
+
+procedure TfSwiftView.VSTBeforeCellPaint(Sender: TBaseVirtualTree;
+  TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
+  CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
+var
+  BgColor: TColor;
+begin
+  if GetNodeData(Node).Editable then
+    BgColor := clWhite
+  else
+    BgColor := clBtnFace;
+  with TargetCanvas do begin
+    Brush.Color := BgColor;
+    FillRect(CellRect);
+  end;
+end;
+
+procedure TfSwiftView.VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
+begin
+  // при изменении узла дерева
+  UpdateFromNode;
+end;
+
+procedure TfSwiftView.VSTGetNodeDataSize(Sender: TBaseVirtualTree;
+  var NodeDataSize: Integer);
+begin
+  NodeDataSize := SizeOf(TSwiftData);
+end;
+
+procedure TfSwiftView.VSTGetText(Sender: TBaseVirtualTree; Node: PVirtualNode;
+  Column: TColumnIndex; TextType: TVSTTextType; var CellText: string);
+begin
+  if Column = 0 then
+    CellText := GetNodeData(Node).TagName
+  else if Column = 1 then
+    CellText := GetNodeData(Node).TagValue
+end;
+
+procedure TfSwiftView.VSTInitNode(Sender: TBaseVirtualTree; ParentNode,
+  Node: PVirtualNode; var InitialStates: TVirtualNodeInitStates);
+begin
+  if GetNodeData(Node).MultiLine then
+    Include(InitialStates, ivsMultiline)
+  else begin
+    Exclude(InitialStates, ivsMultiline);
+    // НЕ ЗАБЫВАЙТЕ ВЫПОЛНЯТЬ ЭТО:
+    Node.States := Node.States - [vsMultiline];
+    // Это выключит многострочность для узлов, где она раньше была.
+  end;
+end;
+
+procedure TfSwiftView.VSTMeasureItem(Sender: TBaseVirtualTree;
+  TargetCanvas: TCanvas; Node: PVirtualNode; var NodeHeight: Integer);
+begin
+//  if GetNodeData(Node).MultiLine then begin
+////    NodeHeight := VST.ComputeNodeHeight(TargetCanvas, Node, 0) + 4;
+//    NodeHeight := 50;
+//    NodeHeight := Max(18, NodeHeight);
+//  end else NodeHeight := 18;
+
+  if Sender.MultiLine[Node] then
+  begin
+    TargetCanvas.Font := Sender.Font;
+    NodeHeight := VST.ComputeNodeHeight(TargetCanvas, Node, 0);
+  end;
+
+
+end;
+
+procedure TfSwiftView.VSTPaintText(Sender: TBaseVirtualTree;
+  const TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
+  TextType: TVSTTextType);
+var
+  FontColor: TColor;
+begin
+//  if not GetNodeData(Node).Editable then
+//    FontColor := clBlack
+//  else
+//  FontColor := clBlack;
+//  if (vsSelected in Node.States) and (Sender.Focused) then
+//    FontColor := clHighlightText;
+//  TargetCanvas.Font.Color := FontColor;
+end;
+
+function TfSwiftView.GetMsgText: string;
+begin
+  // TODO Строим текст по дереву
+  Result := FMsgText;
+end;
+
+procedure TfSwiftView.FillData;
+begin
+  // Отправитель и Получатель
+  edtSender.Text   := FSwiftMessage.Block1.Sender;
+  edtReciever.Text := FSwiftMessage.Block2.Reciever;
+
+  // строим дерево полей
+  BuildTree(FSwiftMessage.Block4);
+  VST.FullExpand(nil);
+end;
+
+procedure TfSwiftView.BuildTree(aBlock: TSwiftBlock4);
+var
+  eTmpTag: TSwiftTag;
+  I: Integer;
+  eNode, eSeqNode, eSubNode, eRoot: PVirtualNode;
+  eIsEditable: Boolean;
+  eData: PSwiftData;
+
+  function IsEditable(aName: string): Boolean;
+  var
+    I: Integer;
+  begin
+    Result := False;
+    if Length(cEditableFields) = 0 then Exit;
+
+    for I := 0 to High(cEditableFields) do
+      if TRegEx.IsMatch(aName, cEditableFields[ I ]) then begin
+        Result := True;
+        Break;
+      end;
+  end;
+
+begin
+  with VST do begin
+    NodeDataSize := SizeOf(TSwiftData);
+    aBlock.RecreateTags;
+    eRoot := RootNode;
+    eNode    := nil;
+    eSeqNode := nil;
+    eSubNode := nil;
+    for I := 0 to aBlock.Count - 1 do begin
+      eTmpTag := aBlock.Tags[ I ];
+
+      // последовательность в корень
+      if MatchText(eTmpTag.Name, cSequenceTags) then begin
+        // начало последовательности
+        if (MatchText(eTmpTag.Name, ['15A', '15B', '16R'])) then begin
+          if (eSeqNode <> nil) then begin
+            eSubNode := AddChild(eSeqNode);
+            eNode    := eSubNode;
+          end else begin
+            eSeqNode := AddChild(eRoot);
+            eNode    := eSeqNode;
+          end;
+        end;
+        // конец последовательности
+        if (SameText(eTmpTag.Name, '16S')) then begin
+          if (eSubNode <> nil) then begin
+            // добавим
+            eNode    := AddChild(eSubNode);
+            eSubNode := nil;
+          end else if (eSeqNode <> nil) then begin
+            eNode    := AddChild(eSeqNode);
+            eSeqNode := nil;
+          end;
+        end;
+      end else begin
+
+        if (eSubNode <> nil) then begin
+          // добавим
+          eNode    := AddChild(eSubNode);
+        end else if (eSeqNode <> nil) then begin
+          eNode    := AddChild(eSeqNode);
+        end;
+      end;
+      eData := GetNodeData(eNode);
+      eData^.TagName   := eTmpTag.Name;
+      eData^.TagValue  := eTmpTag.Value;
+      eData^.Editable  := IsEditable(eTmpTag.FullName);
+      eData^.MultiLine := Pos(#$D#$A, eTmpTag.Value) > 0;
+    end;
+  end;
+end;
+
+procedure TfSwiftView.SetMsgText(aValue: string);
+begin
+  FMsgText := aValue;
+  if FMsgText > '' then begin
+    FSwiftMessage := TSwift.Load(FMsgType, FMsgText);
+    if Assigned(FSwiftMessage) then
+      FillData;
+  end;
+end;
+
+procedure TfSwiftView.UpdateFromNode;
+var
+  Data: PSwiftData;
+begin
+  with VST do
+  if FocusedNode = nil then begin
+    PnlEditor.Visible  := False;
+  end else begin
+    Data := GetNodeData(FocusedNode);
+    PnlEditor.Visible  := True;
+    lblTagName.Caption := Data.TagName;
+    lblTagName.Enabled := True;
+    if Data.MultiLine then begin
+      mmoTagValue.Text     := Data.TagValue;
+      mmoTagValue.Visible  := True;
+      edtTagValue.Visible  := False;
+      mmoTagValue.Enabled  := Data.Editable;
+    end else begin
+      edtTagValue.Text     := Data.TagValue;
+      mmoTagValue.Visible  := False;
+      edtTagValue.Visible  := True;
+      edtTagValue.Enabled  := Data.Editable;
+    end;
+  end;
+end;
+
+end.

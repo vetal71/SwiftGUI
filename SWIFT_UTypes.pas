@@ -1,0 +1,737 @@
+unit SWIFT_UTypes;
+
+interface
+
+uses Windows, Messages, SysUtils, Graphics, VirtualTrees, Classes, StdCtrls,
+     Controls, Forms, ImgList;
+
+type
+
+{ Узел дерева }
+  TSwiftNode = class(TObject)
+  private
+    FParent: TSwiftNode;
+    FChildren: TList;
+    FCheckState: TCheckState;
+    FTagName, FTagValue: string;
+    FEditable, FMultiLine: Boolean;
+
+    FVirtualNode: PVirtualNode;
+
+    procedure SetTagName(aTagName: string);
+    procedure SetTagValue(aTagValue: string);
+    procedure SetCheckState(aCheckState: TCheckState);
+    function GetChildCount:integer;
+    function GetChild(n:integer): TSwiftNode;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    function GetImageIndex: integer; virtual;
+    procedure InvalidateVirtualNode;
+
+    property CheckState: TCheckState read FCheckState write SetCheckState;
+    property TagName: string read FTagName write SetTagName;
+    property TagValue: string read FTagValue write SetTagValue;
+    property MultiLine: Boolean read FMultiLine write FMultiLine;
+    property Editable: Boolean read FEditable write FEditable;
+
+    property Parent: TSwiftNode read FParent;
+    property ChildCount: integer read GetChildCount;
+    property Child[n:integer]: TSwiftNode read GetChild;
+    function CreateChild: TSwiftNode;
+    procedure RemoveChild(n: integer);
+    procedure DestroyChild(n: integer);
+
+    property VirtualNode: PVirtualNode read FVirtualNode write FVirtualNode;
+  end;
+
+  TSwiftTree = class
+  private
+    FRoot: TSwiftNode;
+    FSettingViewer: integer;
+    FViewer: TObject;
+
+    procedure SetViewer(aViewer: TObject);
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    property Root: TSwiftNode read FRoot;
+    property Viewer: TObject read FViewer write SetViewer;
+    procedure BeginUpdate;
+    procedure EndUpdate;
+  end;
+
+  TSwiftEditLink = class;
+
+  TSwiftTreeView = class(TCustomVirtualStringTree)
+  private
+    FTree:TSwiftTree;
+    FInternalDataOffset: Cardinal;               // offset to the internal data
+
+    procedure SetTree(aTree: TSwiftTree);
+    function GetSwiftNode(VirtualNode: PVirtualNode): TSwiftNode;
+    procedure SetSwiftNode(VirtualNode: PVirtualNode; aNode: TSwiftNode);
+    function GetOptions: TStringTreeOptions;
+    procedure SetOptions(const Value: TStringTreeOptions);
+  protected
+    function DoGetNodeWidth(Node: PVirtualNode; Column: TColumnIndex;
+      Canvas: TCanvas = nil): Integer; override;
+    procedure DoPaintNode(var PaintInfo: TVTPaintInfo); override;
+    procedure DoInitChildren(Node:PVirtualNode; var ChildCount:Cardinal); override;
+    procedure DoInitNode(aParent,aNode:PVirtualNode;
+      var aInitStates:TVirtualNodeInitStates); override;
+    procedure DoFreeNode(aNode: PVirtualNode); override;
+    function DoGetImageIndex(Node: PVirtualNode; Kind: TVTImageKind; Column: TColumnIndex;
+     var Ghosted: Boolean; var Index: Integer): TCustomImageList; override;
+    procedure DoChecked(aNode:PVirtualNode); override;
+    function DoCreateEditor(Node: PVirtualNode; Column: TColumnIndex): IVTEditLink; override;
+    function InternalData(Node: PVirtualNode): Pointer;
+    function InternalDataSize: Cardinal;
+
+    function GetOptionsClass: TTreeOptionsClass; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+
+    property Tree: TSwiftTree read FTree write SetTree;
+    property SwiftNode[VirtualNode:PVirtualNode]: TSwiftNode read GetSwiftNode;
+    function GetNodeText(aNode:TSwiftNode; aColumn:integer):string;
+    procedure SetNodeText(aNode:TSwiftNode; aColumn:integer; aText:string);
+  published
+    property TreeOptions: TStringTreeOptions read GetOptions write SetOptions;
+    property Header;
+    property Images;
+    property OnChange;
+    property OnInitNode;
+    property OnMeasureItem;
+    property OnPaintText;
+    property OnBeforeCellPaint;
+  end;
+
+  TSwiftEdit=class(TCustomEdit)
+  private
+    FLink: TSwiftEditLink;
+    procedure WMChar(var Message: TWMChar); message WM_CHAR;
+    procedure WMKeyDown(var Message: TWMKeyDown); message WM_KEYDOWN;
+    procedure WMKillFocus(var Msg: TWMKillFocus); message WM_KILLFOCUS;
+  protected
+    procedure AutoAdjustSize;
+    procedure CreateParams(var Params: TCreateParams); override;
+  public
+    constructor Create(Link: TSwiftEditLink); reintroduce;
+  end;
+
+  TSwiftEditLink = class(TInterfacedObject, IVTEditLink)
+  private
+    FEdit: TSwiftEdit;                    // a normal custom edit control
+    FTree: TSwiftTreeView;                // a back reference to the tree calling
+    FNode: PVirtualNode;                  // the node to be edited
+    FColumn: Integer;                     // the column of the node
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    function BeginEdit: Boolean; stdcall;
+    function CancelEdit: Boolean; stdcall;
+    function EndEdit: Boolean; stdcall;
+    function GetBounds: TRect; stdcall;
+    function PrepareEdit(Tree: TBaseVirtualTree; Node: PVirtualNode;
+      Column: TColumnIndex): Boolean; stdcall;
+    procedure ProcessMessage(var Message: TMessage); stdcall;
+    procedure SetBounds(R: TRect); stdcall;
+
+    property Tree: TSwiftTreeView read FTree;
+  end;
+
+implementation
+
+{ TSwiftNode }
+constructor TSwiftNode.Create;
+begin
+  inherited Create;
+  FChildren := TList.Create;
+end;
+
+destructor TSwiftNode.Destroy;
+begin
+  if Assigned(FParent) then
+    with FParent do
+      RemoveChild(FChildren.IndexOf(Self));
+  { Уничтожение всех дочерних элементов }
+  while ChildCount>0 do DestroyChild(0);
+
+  inherited Destroy;
+end;
+
+function TSwiftNode.GetImageIndex:integer;
+begin
+  if TagName = ''
+    then Result := -1 else Result := (Length(TagName) mod 4);
+end;
+
+procedure TSwiftNode.InvalidateVirtualNode;
+var T:TBaseVirtualTree;
+begin
+  { Если дерево имеет узел, отображаем этот узел. }
+  if Assigned(FVirtualNode) then
+  begin
+    T := TreeFromNode(FVirtualNode);
+    T.InvalidateNode(FVirtualNode);
+  end;
+end;
+
+procedure TSwiftNode.SetCheckState(aCheckState:TCheckState);
+begin
+  if aCheckState = FCheckstate then exit;
+  FCheckState := aCheckState;
+  if Assigned(FVirtualNode) then FVirtualNode.CheckState := aCheckState;
+  InvalidateVirtualNode;
+end;
+
+procedure TSwiftNode.SetTagName(aTagName:string);
+begin
+  if aTagName = FTagName then exit;
+  FTagName := aTagName;
+  InvalidateVirtualNode;
+end;
+
+procedure TSwiftNode.SetTagValue(aTagValue:string);
+begin
+  if aTagValue = FTagValue then exit;
+  FTagValue := aTagValue;
+  InvalidateVirtualNode;
+end;
+
+function TSwiftNode.GetChildCount:integer;
+begin
+  Result := FChildren.Count;
+end;
+
+function TSwiftNode.GetChild(n:integer): TSwiftNode;
+begin
+  Result := TSwiftNode(FChildren[n]);
+end;
+
+function TSwiftNode.CreateChild: TSwiftNode;
+begin
+  Result := TSwiftNode.Create;
+  Result.FParent := Self;
+  FChildren.Add(Result);
+  if Assigned(FVirtualNode) then begin
+    with TreeFromNode(FVirtualNode) do begin
+      ReinitNode(FVirtualNode, False);
+      InvalidateToBottom(FVirtualNode);
+    end;
+  end;
+end;
+
+procedure TSwiftNode.RemoveChild(n:integer);
+var C: TSwiftNode;
+begin
+  { Удаляем дочерний узел из списка узлолв }
+  C := Child[n];
+  C.FParent := nil;
+  FChildren.Delete(n);
+  if Assigned(C.FVirtualNode) then
+    TreeFromNode(C.FVirtualNode).DeleteNode(C.FVirtualNode);
+end;
+
+procedure TSwiftNode.DestroyChild(n:integer);
+var C: TSwiftNode;
+begin
+  C := Child[n];
+  RemoveChild(n);
+  C.Free;
+end;
+
+{ TSwiftTree }
+constructor TSwiftTree.Create;
+begin
+  inherited Create;
+  FRoot := TSwiftNode.Create;
+end;
+
+destructor TSwiftTree.Destroy;
+begin
+  Viewer := nil;
+  FRoot.Free;
+  FRoot := nil;
+  inherited Destroy;
+end;
+
+procedure TSwiftTree.SetViewer(aViewer:TObject);
+begin
+  if FSettingViewer > 0 then exit;
+
+  inc(FSettingViewer);
+  try
+    if Assigned(FViewer) then TSwiftTreeView(FViewer).Tree := nil;
+    FViewer := aViewer;
+    if Assigned(FViewer) then TSwiftTreeView(FViewer).Tree := Self;
+  finally
+    dec(FSettingViewer);
+  end;
+end;
+
+procedure TSwiftTree.BeginUpdate;
+begin
+  if Assigned(FViewer) then TSwiftTreeView(FViewer).BeginUpdate;
+end;
+
+procedure TSwiftTree.EndUpdate;
+begin
+  if Assigned(FViewer) then TSwiftTreeView(FViewer).EndUpdate;
+end;
+
+{ TSwiftTreeView }
+
+type PMyNodeData = ^TMyNodeData;
+     TMyNodeData = packed record Node: TSwiftNode end;
+
+destructor TSwiftTreeView.Destroy;
+begin
+  Tree := nil;
+  inherited Destroy;
+end;
+
+procedure TSwiftTreeView.SetTree(aTree: TSwiftTree);
+begin
+  if FTree = aTree then exit;
+
+  if Assigned(FTree) then FTree.Viewer := nil;
+  FTree := aTree;
+  if Assigned(FTree) then begin
+    FTree.Viewer  := Self;
+    RootNodeCount := FTree.Root.ChildCount;
+    if FTree.Root.ChildCount > 0 then ValidateNode(GetFirst, False);
+  end else RootNodeCount := 0;
+end;
+
+function TSwiftTreeView.GetSwiftNode(VirtualNode: PVirtualNode): TSwiftNode;
+begin
+  if VirtualNode = nil then Result := nil
+  else Result := PMyNodeData(InternalData(VirtualNode)).Node;
+end;
+
+procedure TSwiftTreeView.SetSwiftNode(VirtualNode:PVirtualNode;aNode: TSwiftNode);
+begin
+  PMyNodeData(InternalData(VirtualNode)).Node := aNode;
+end;
+
+function TSwiftTreeView.DoCreateEditor(Node: PVirtualNode; Column: TColumnIndex): IVTEditLink;
+var Link: TSwiftEditLink;
+begin
+  Result := inherited DoCreateEditor(Node, Column);
+  if Result = nil then
+  begin
+    Link := TSwiftEditLink.Create;
+    Result := Link;
+  end;
+end;
+
+function TSwiftTreeView.DoGetNodeWidth(Node: PVirtualNode; Column: TColumnIndex;
+  Canvas: TCanvas = nil): Integer;
+var
+  N: TSwiftNode;
+  Text: string;
+begin
+  N := GetSwiftNode(Node);
+  if Canvas = nil then
+    Canvas := Self.Canvas;
+  if not Assigned(N) then Result := 0
+  else begin
+    Text := GetNodeText(N, Column);
+    Result := Canvas.TextWidth(Text);
+  end;
+end;
+
+function TSwiftTreeView.GetNodeText(aNode:TSwiftNode;aColumn:integer):string;
+begin
+  case aColumn of
+    -1, 0: Result := aNode.TagName;
+     1: Result := aNode.TagValue;
+  else Result:='Нет данных';
+  end;
+end;
+
+procedure TSwiftTreeView.SetNodeText(aNode: TSwiftNode; aColumn: integer; aText: string);
+begin
+  case aColumn of
+    -1,0: aNode.TagName  := aText;
+       1: aNode.TagValue := aText;
+    else
+  end;
+end;
+
+procedure TSwiftTreeView.DoPaintNode(var PaintInfo: TVTPaintInfo);
+var
+  N: TSwiftNode;
+  SaveFontColor: TColor;
+  Flags: Integer;
+  TxtRect: TRect;
+  NodeText: string;
+  OldBrushColor, OldPenColor: TColor;
+
+  procedure SaveDC;
+  begin
+    OldBrushColor := PaintInfo.Canvas.Brush.Color;
+    OldPenColor   := PaintInfo.Canvas.Pen.Color;
+  end;
+
+  procedure RestoreDC;
+  begin
+    PaintInfo.Canvas.Brush.Color := OldBrushColor;
+    PaintInfo.Canvas.Pen.Color   := OldPenColor;
+  end;
+
+begin
+  SaveDC;
+  try
+    with PaintInfo, Canvas do begin
+      Font := Self.Font;
+      N := SwiftNode[Node];
+      if N = nil then exit;
+
+      NodeText := GetNodeText(N, Column);
+
+      if (toHotTrack in Self.TreeOptions.PaintOptions) and
+         (Node = HotNode)
+        then Font.Style := Font.Style + [fsUnderline]
+        else Font.Style := Font.Style - [fsUnderline];
+
+      if vsSelected in Node.States then begin
+        if Focused then begin
+          Brush.Color := clHighLight;
+          Font.Color  := clWhite;
+        end else begin
+          Brush.Color := clBtnFace;
+          Font.Color  := Self.Font.Color;
+        end;
+
+        FillRect(ContentRect);
+      end else if Node = DropTargetNode then begin
+        if LastDropMode = dmOnNode then begin
+          Brush.Color := clHighLight;
+          Font.Color  := clWhite;
+        end else begin
+          Brush.Style := bsClear;
+          Font.Color  := Self.Font.Color;
+        end;
+        FillRect(ContentRect);
+      end;
+
+      if Focused
+         and (FocusedNode = Node) and
+         not(toFullRowSelect in Self.TreeOptions.SelectionOptions)
+        then begin
+        if Self.Color = clGray
+          then Brush.Color := clWhite
+          else Brush.Color := clBlack;
+        SaveFontColor := Font.Color;
+        Font.Color    := Self.Color;
+        Windows.DrawFocusRect(Handle, ContentRect);
+        Font.Color:=SaveFontColor;
+      end;
+
+      if vsDisabled in Node.States then Font.Color := clBtnShadow;
+
+      Brush.Color := Color;
+      SetBkMode(Handle, TRANSPARENT);
+
+      TxtRect.Left   := ContentRect.Left;
+      TxtRect.Top    := ContentRect.Top;
+      TxtRect.Right  := ContentRect.Right;
+      TxtRect.Bottom := ContentRect.Bottom;
+      Flags := DT_LEFT or DT_SINGLELINE or DT_VCENTER;
+      DrawText(Handle, PChar(NodeText), Length(NodeText), TxtRect, Flags);
+    end;
+  finally
+    RestoreDC;
+  end;
+end;
+
+procedure TSwiftTreeView.DoFreeNode(aNode:PVirtualNode);
+var
+  N: TSwiftNode;
+begin
+  N := SwiftNode[aNode];
+  if Assigned(N) then begin
+    N.VirtualNode := nil;
+    SetSwiftNode(aNode, nil);
+  end;
+  inherited DoFreeNode(aNode);
+end;
+
+procedure TSwiftTreeView.DoInitChildren(Node:PVirtualNode; var ChildCount:Cardinal);
+begin
+  inherited DoInitChildren(Node, ChildCount);
+  ChildCount := SwiftNode[Node].ChildCount;
+end;
+
+procedure TSwiftTreeView.DoInitNode(aParent,aNode:PVirtualNode;
+                                  var aInitStates:TVirtualNodeInitStates);
+var
+  P,I: TSwiftNode;
+begin
+  inherited DoInitNode(aParent, aNode, aInitStates);
+  with aNode^ do begin
+    if (aParent = RootNode) or (aParent = nil)
+      then P := FTree.Root
+      else P := SwiftNode[aParent];
+    I := P.Child[Index];
+
+    SetSwiftNode(aNode, I);
+    I.VirtualNode := aNode;
+
+    if I.ChildCount > 0
+      then Include(aInitStates, ivsHasChildren)
+      else Exclude(aInitStates, ivsHasChildren);
+    CheckState := I.CheckState;
+  end;
+end;
+
+function TSwiftTreeView.DoGetImageIndex(Node: PVirtualNode; Kind: TVTImageKind;
+  Column: TColumnIndex; var Ghosted: Boolean; var Index: Integer): TCustomImageList;
+var
+  N: TSwiftNode;
+begin
+  Result := nil;
+  case Column of
+    -1,0:begin
+           N := SwiftNode[Node];
+           if N = nil
+             then Index := -1
+             else Index := N.GetImageIndex;
+         end;
+    else Index := -1;
+  end;
+end;
+
+procedure TSwiftTreeView.DoChecked(aNode: PVirtualNode);
+var
+  N: TSwiftNode;
+begin
+  if Assigned(FTree) then begin
+    N := SwiftNode[aNode];
+    if Assigned(N) then N.CheckState := aNode^.CheckState;
+  end;
+  inherited DoChecked(aNode);
+end;
+
+function TSwiftTreeView.InternalData(Node: PVirtualNode): Pointer;
+begin
+  if (Node = RootNode) or (Node = nil) then
+    Result := nil
+  else
+    Result := PByte(Node) + FInternalDataOffset;
+end;
+
+function TSwiftTreeView.InternalDataSize: Cardinal;
+begin
+  Result := SizeOf(TMyNodeData);
+end;
+
+constructor TSwiftTreeView.Create(AOwner: TComponent);
+begin
+  inherited;
+  FInternalDataOffset := AllocateInternalDataArea(SizeOf(Cardinal));
+end;
+
+function TSwiftTreeView.GetOptions: TStringTreeOptions;
+begin
+  Result := inherited TreeOptions as TStringTreeOptions;
+end;
+
+procedure TSwiftTreeView.SetOptions(const Value: TStringTreeOptions);
+begin
+  TreeOptions.Assign(Value);
+end;
+
+function TSwiftTreeView.GetOptionsClass: TTreeOptionsClass;
+begin
+  Result := TStringTreeOptions;
+end;
+
+{ TSwiftEditLink }
+constructor TSwiftEditLink.Create;
+begin
+  inherited;
+  FEdit := TSwiftEdit.Create(Self);
+  with FEdit do
+  begin
+    Visible := False;
+    Ctl3D := False;
+    BorderStyle := bsSingle;
+    AutoSize := False;
+  end;
+end;
+
+destructor TSwiftEditLink.Destroy;
+begin
+  FEdit.Free;
+  inherited;
+end;
+
+function TSwiftEditLink.BeginEdit: Boolean;
+begin
+  Result := True;
+  FEdit.Show;
+  FEdit.SetFocus;
+end;
+
+function TSwiftEditLink.CancelEdit: Boolean;
+begin
+  Result := True;
+  FTree  := nil;
+  FEdit.Hide;
+end;
+
+function TSwiftEditLink.EndEdit: Boolean;
+var
+  LastTree: TSwiftTreeView;
+  N: TSwiftNode;
+begin
+  Result := True;
+  try
+    if Assigned(FTree) then begin
+      if FEdit.Modified then begin
+        N := FTree.SwiftNode[FNode];
+        LastTree := FTree;
+        FTree := nil;
+
+        LastTree.SetNodeText(N, FColumn, FEdit.Caption);
+      end;
+      FTree:=nil;
+    end;
+  finally
+    FEdit.Hide;
+  end;
+end;
+
+function TSwiftEditLink.GetBounds: TRect;
+begin
+  Result := FEdit.BoundsRect;
+end;
+
+function TSwiftEditLink.PrepareEdit(Tree: TBaseVirtualTree; Node: PVirtualNode;
+  Column:TColumnIndex): Boolean;
+var
+  R: TRect;
+  N: TSwiftNode;
+begin
+  Result := True;
+  FTree  := Tree as TSwiftTreeView;
+
+  FNode   := Node;
+  FColumn := Column;
+
+  N := FTree.SwiftNode[Node];
+
+  FEdit.Caption := FTree.GetNodeText(N, Column);
+  FEdit.Parent  := Tree;
+  R := FTree.GetDisplayRect(Node, Column, True);
+
+  with R do begin
+    // границы редактора
+    if Right - Left < 50 then Right := Left + 50;
+    if Right > FTree.Width then Right := FTree.Width;
+    FEdit.SetBounds(Left, Top, Right - Left, Bottom - Top);
+    FEdit.Font := FTree.Font;
+  end;
+end;
+
+procedure TSwiftEditLink.SetBounds(R: TRect);
+begin
+  // ignore this one as we get here the entire node rect but want the minimal text bounds
+end;
+
+constructor TSwiftEdit.Create(Link: TSwiftEditLink);
+begin
+  inherited Create(nil);
+  ShowHint := False;
+  ParentShowHint := False;
+  FLink := Link;
+end;
+
+{ TSwiftEdit }
+procedure TSwiftEdit.WMChar(var Message: TWMChar);
+begin
+  if Message.CharCode <> VK_ESCAPE then begin
+    inherited;
+    if Message.CharCode > $20 then AutoAdjustSize;
+  end;
+end;
+
+procedure TSwiftEdit.WMKeyDown(var Message: TWMKeyDown);
+begin
+  case Message.CharCode of
+    // pretend these keycodes were send to the tree
+    VK_ESCAPE,
+    VK_UP,
+    VK_DOWN:
+      FLink.FTree.WndProc(TMessage(Message));
+    VK_RETURN:
+      FLink.FTree.DoEndEdit;
+    Ord('C'):
+      if (Message.KeyData and MK_CONTROL) <> 0 then CopyToClipboard;
+    Ord('X'):
+      if (Message.KeyData and MK_CONTROL) <> 0 then
+      begin
+        CutToClipboard;
+        AutoAdjustSize;
+      end;
+    Ord('V'):
+      if (Message.KeyData and MK_CONTROL) <> 0 then begin
+        PasteFromClipboard;
+        AutoAdjustSize;
+      end;
+  else
+    inherited;
+    case Message.CharCode of
+      VK_BACK,
+      VK_DELETE:
+        AutoAdjustSize;
+    end;
+  end;
+end;
+
+procedure TSwiftEdit.WMKillFocus(var Msg: TWMKillFocus);
+begin
+  inherited;
+  if Assigned(FLink.FTree) then FLink.FTree.DoCancelEdit;
+end;
+
+procedure TSwiftEdit.AutoAdjustSize;
+var
+  DC: HDC;
+  Size: TSize;
+  EditRect,
+  TreeRect: TRect;
+begin
+  DC := GetDc(Handle);
+  GetTextExtentPoint32(DC, PChar(Text), Length(Text), Size);
+  // determine minimum and maximum sizes
+  if Size.cx < 50 then Size.cx := 50;
+  EditRect := ClientRect;
+  MapWindowPoints(Handle, HWND_DESKTOP, EditRect, 2);
+  TreeRect := FLink.FTree.ClientRect;
+  MapWindowPoints(FLink.FTree.Handle, HWND_DESKTOP, TreeRect, 2);
+  if (EditRect.Left + Size.cx) > TreeRect.Right then Size.cx := TreeRect.Right - EditRect.Left;
+  SetWindowPos(Handle, 0, 0, 0, Size.cx, Height, SWP_NOMOVE or SWP_NOOWNERZORDER or SWP_NOZORDER);
+  ReleaseDC(Handle, DC);
+end;
+
+procedure TSwiftEdit.CreateParams(var Params:TCreateParams);
+begin
+  Ctl3D := False;
+  inherited;
+end;
+
+procedure TSwiftEditLink.ProcessMessage(var Message: TMessage);
+begin
+  // nothing to do
+end;
+
+end.

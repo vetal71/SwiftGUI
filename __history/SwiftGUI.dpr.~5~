@@ -1,0 +1,16 @@
+program SwiftGUI;
+
+uses
+  Forms,
+  SWG_FMain in 'SWG_FMain.pas' {fMain},
+  SWIFT_UPanel in 'SWIFT_UPanel.pas',
+  SWIFT_UTypes in 'SWIFT_UTypes.pas';
+
+{$R *.res}
+
+begin
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(TfMain, fMain);
+  Application.Run;
+end.

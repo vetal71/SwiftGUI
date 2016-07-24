@@ -1,0 +1,51 @@
+unit SWG_FMain;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, ComCtrls, ExtCtrls, StdCtrls;
+
+type
+  TfMain = class(TForm)
+    pnlButtons: TPanel;
+    pnlMain: TPanel;
+    pgcMain: TPageControl;
+    tsText: TTabSheet;
+    tsView: TTabSheet;
+    mmoText: TMemo;
+    scbView: TScrollBox;
+    btnLoad: TButton;
+    btnEditor: TButton;
+    pnlButtonView: TPanel;
+    btnApply: TButton;
+    btnCancel: TButton;
+    btnValidate: TButton;
+    procedure btnLoadClick(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  fMain: TfMain;
+
+implementation
+
+{$R *.dfm}
+
+procedure TfMain.btnLoadClick(Sender: TObject);
+begin
+  // загрузка файла
+  with TOpenDialog.Create(Application) do begin
+    Filter := 'Text|*.txt';
+    InitialDir := ExtractFilePath( ParamStr(0) + 'Samples\' );
+    if Execute then
+      mmoText.Lines.LoadFromFile(FileName);
+
+    Free;
+  end;
+end;
+
+end.
