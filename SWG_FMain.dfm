@@ -67,6 +67,10 @@ object fMain: TfMain
       TabOrder = 0
       object tsText: TTabSheet
         Caption = #1058#1077#1082#1089#1090
+        ExplicitLeft = 0
+        ExplicitTop = 0
+        ExplicitWidth = 0
+        ExplicitHeight = 0
         object mmoText: TMemo
           AlignWithMargins = True
           Left = 3

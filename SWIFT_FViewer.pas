@@ -25,6 +25,8 @@ type
   end;
   PSwiftData = ^TSwiftData;
 
+  TSWiftFieldTYpe = set of (sftSequence, sftSubSequence, sftField);
+
   TfSwiftView = class(TFrame)
     pnlTop: TPanel;
     pnlView: TPanel;
@@ -79,12 +81,12 @@ type
     procedure BuildTree(aBlock: TSwiftBlock4);
     function GetNodeData(const ANode: PVirtualNode): PSwiftData;
     function BuildMessageText: string;
-    function AddField(): Boolean;
+    function AddField(aType: TSWiftFieldTYpe): Boolean;
 
   public
     property MsgType: Integer read FMsgType write FMsgType;
     property MessageText: string read GetMsgText write SetMsgText;
-    property ReadOnlyMsg: Boolean write FReadOnlyMsg default True read FReadOnlyMsg;
+    property ReadOnlyMsg: Boolean write FReadOnlyMsg default True;
   end;
 
 implementation
@@ -259,22 +261,25 @@ begin
   VST.FullExpand(nil);
 end;
 
-function TfSwiftView.AddField: Boolean;
+function TfSwiftView.AddField(aType: TSWiftFieldTYpe): Boolean;
 var
   FDlg: TFDlgAddField;
   Data: PSwiftData;
 begin
+  case aType of
+  sftSequence: ;
+  sftSubSequence: ;
+  sftField: ;
+  end;
   // Добавление поля
   FDlg := TFDlgAddField.Create(Owner);
-  FullName := '';
   try
     with FDlg do begin
       if ShowModal = mrOk then begin
-        if edtFieldName.Text = '' then
+        if edtTagName.Text = '' then
           raise Exception.Create('Наименование поля не должно быть пустым!');
 
-        Data^.TagName     := edtFieldName.Text;
-        Data^.TagFullName := FullName;
+        Data^.TagName     := edtTagName.Text;
         Data^.Editable    := True;
         VST.AddChild(VST.FocusedNode, Data);
       end;

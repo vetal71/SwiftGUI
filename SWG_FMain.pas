@@ -36,7 +36,7 @@ var
 implementation
 
 uses
-  Swift_UViewer;
+  Swift_FViewer;
 
 {$R *.dfm}
 
@@ -49,7 +49,8 @@ begin
     Parent  := scbView;
     Align   := alClient;
     MsgType := 518;
-    MsgText := mmoText.Text;
+    MessageText := mmoText.Text;
+    ReadOnlyMsg := True;
   end;
   Result := True;
 end;

@@ -172,6 +172,7 @@ type
     function Valid(): Boolean; override;
 
     function GetFieldValueBy(const aName: string): string;
+    function GetFieldByEx(const aFullName: string): TSwiftField;
     function ExistTagBy(const aName: string): Boolean;
     function ExistOptionTagBy(const aName: string): Boolean;
     function SwiftDictToString: string;
@@ -530,6 +531,95 @@ type
 
   function CheckSWIFTMsgFormat(const aMsgText: string; aMsgType: Integer = 0): string; stdcall;
 
+  const
+   cSwiftFieldsFour518: array [0..39] of TSwiftFieldsRec =
+    (
+    // последовательность A
+    (FullName: 'GENL.16R';                  Mandatory: 1; Content: 'GENL';                  Pattern: '^GENL$'),
+    (FullName: 'GENL.20C.SEME';             Mandatory: 1; Content: ':4!c//16x';             Pattern: '^(:SEME//)[\w\-:\(\)\.,\+\?\/ ]{1,16}$'),
+    (FullName: 'GENL.23G';                  Mandatory: 1; Content: '4!c[/4!c]';             Pattern: '^(CANC|NEWM)(/(CODU|COPY|DUPL))?$'),
+    (FullName: 'GENL.22F.TRTR';             Mandatory: 1; Content: ':4!c/[8c]/4!c';         Pattern: '^(:TRTR/)([A-Z0-9]{1,8})?(/(BASK|INDX|LIST|PROG|TRAD))$'),
+    (FullName: 'GENL.16S';                  Mandatory: 1; Content: 'GENL';                  Pattern: '^GENL$'),
+    // последовательность B
+    (FullName: 'CONFDET.16R';               Mandatory: 1; Content: 'CONFDET';               Pattern: '^CONFDET$'),
+    (FullName: 'CONFDET.98A.SETT';          Mandatory: 1; Content: ':4!c//8!n';             Pattern: '^(:SETT//)\d{8}$'),
+    (FullName: 'CONFDET.98A.TRAD';          Mandatory: 1; Content: ':4!c//8!n';             Pattern: '^(:TRAD//)\d{8}$'),
+    (FullName: 'CONFDET.90A.DEAL';          Mandatory: 1; Content: ':4!c//4!c/15d';         Pattern: '^(:DEAL//)([A-Z0-9]{4})(/[(\d+)?,(\d+)?]*)$'),
+    (FullName: 'CONFDET.99A.DAAC';          Mandatory: 0; Content: ':4!c//[N]3!n';          Pattern: '^(:DAAC//)N?\d{3}$'),
+    (FullName: 'CONFDET.22H.BUSE';          Mandatory: 1; Content: ':4!c//4!c';             Pattern: '^(:BUSE//)(BUYI|CROF|CROT|DIVR|IPOO|REDM|SELL|SUBS|SWIF|SWIT)$'),
+    (FullName: 'CONFDET.22H.PAYM';          Mandatory: 1; Content: ':4!c//4!c';             Pattern: '^(:PAYM//)(APMT|FREE)$'),
+    // последовательность B1
+    (FullName: 'CONFDET.CONFPRTY.16R';      Mandatory: 1; Content: 'CONFPRTY';              Pattern: '^CONFPRTY$'),
+    (FullName: 'CONFDET.CONFPRTY.95P';      Mandatory: 2; Content: ':4!c//4!a2!a2!c[3!c]';  Pattern: '^(:(BUYR|SELL)//)(([A-Z]{6})([A-Z0-9]{2})([A-Z0-9]{3})?)$'),
+    (FullName: 'CONFDET.CONFPRTY.97A.CASH'; Mandatory: 0; Content: ':4!c//35x';             Pattern: '^(:CASH//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
+    (FullName: 'CONFDET.CONFPRTY.22F.TRCA'; Mandatory: 0; Content: ':4!c/[8c]/4!c';         Pattern: '^(:TRCA/)([A-Z0-9]{1,8})?(/(AGEN|BAGN|CAGN|CPRN|INFI|MKTM|MLTF|OAGNPRAG|PRIN|RMKT|SINT|TAGT))$'),
+    (FullName: 'CONFDET.CONFPRTY.16S';      Mandatory: 1; Content: 'CONFPRTY';              Pattern: '^CONFPRTY$'),
+    (FullName: 'CONFDET.36B.CONF';          Mandatory: 1; Content: ':4!c//4!c/15d';         Pattern: '^(:CONF//)([A-Z0-9]{4})(/[(\d+)?,(\d+)?]*)$'),
+    // последовательность B2
+    (FullName: 'CONFDET.FIA.16R';           Mandatory: 0; Content: 'FIA';                   Pattern: '^FIA$'),
+    (FullName: 'CONFDET.FIA.12A';           Mandatory: 0; Content: ':4!c/[8c]/30x';         Pattern: '^(:(CLAS|OPST|OPTI)/)([A-Z0-9]{1,8})?(/[\w\-:\(\)\.,\+\?\/ ]{1,30})$'),
+    (FullName: 'CONFDET.FIA.11A';           Mandatory: 0; Content: ':4!c//3!a';             Pattern: '^(:DENO//)([A-Z]{3})$'),
+    (FullName: 'CONFDET.FIA.98A.MATU';      Mandatory: 0; Content: ':4!c//8!n';             Pattern: '^(:MATU//)(\d{8})$'),
+    (FullName: 'CONFDET.FIA.92A.INTR';      Mandatory: 0; Content: ':4!c//[N]15d';          Pattern: '^(:INTR//)N?([(\d+)?,(\d+)?]*)$'),
+    (FullName: 'CONFDET.FIA.70E.FIAN';      Mandatory: 0; Content: ':4!c//10*35x';          Pattern: '\A(:FIAN//)(([\w\-:\(\)\.,\+\?\/ ]{1,35}(\r\n)?))(^([\w\-:\(\)\.,\+\?\/ ]{1,35}(\r\n)?)){0,9}\Z'),
+    (FullName: 'CONFDET.FIA.16S';           Mandatory: 0; Content: 'FIA';                   Pattern: '^FIA$'),
+    (FullName: 'CONFDET.70E.TRPO';          Mandatory: 0; Content: ':4!c//10*35x';          Pattern: '^(:TRPO//)([\w\-:\(\)\.,\+\?\/ ]{0,35})(\r\n)?(([\w\-:\(\)\.,\+\?\/ ]{0,35}(\r\n)?){0,9})$'),
+    (FullName: 'CONFDET.16S';               Mandatory: 1; Content: 'CONFDET';               Pattern: '^CONFDET$'),
+    // последовательность C
+    (FullName: 'SETDET.16R';                Mandatory: 1; Content: 'SETDET';                Pattern: '^SETDET$'),
+    (FullName: 'SETDET.22F.SETR';           Mandatory: 1; Content: ':4!c/[8c]/4!c';         Pattern: '^(:(SETR|RTGS)/)([A-Z0-9]{1,8})?(/[A-Z]{4})$'),
+    // последовательность C1
+    (FullName: 'SETDET.SETPRTY.16R';        Mandatory: 1; Content: 'SETPRTY';               Pattern: '^SETPRTY$'),
+    (FullName: 'SETDET.SETPRTY.95P';        Mandatory: 2; Content: ':4!c//4!a2!a2!c[3!c]';  Pattern: '^(:(SELL|DEAG|BUYR|REAG)//)(([A-Z]{6})([A-Z0-9]{2})([A-Z0-9]{3})?)$'),
+    (FullName: 'SETDET.SETPRTY.16S';        Mandatory: 1; Content: 'SETPRTY';               Pattern: '^SETPRTY$'),
+    // последовательность C2
+    (FullName: 'SETDET.CSHPRTY.16R';        Mandatory: 1; Content: 'CSHPRTY';               Pattern: '^CSHPRTY$'),
+    (FullName: 'SETDET.CSHPRTY.95P.ACCW';   Mandatory: 1; Content: ':4!c//4!a2!a2!c[3!c]';  Pattern: '^(:ACCW//)(([A-Z]{6})([A-Z0-9]{2})([A-Z0-9]{3})?)$'),
+    (FullName: 'SETDET.CSHPRTY.97A.CASH';   Mandatory: 0; Content: ':4!c//35x';             Pattern: '^(:CASH//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
+    (FullName: 'SETDET.CSHPRTY.16S';        Mandatory: 1; Content: 'CSHPRTY';               Pattern: '^CSHPRTY$'),
+    // последовательность C3
+    (FullName: 'SETDET.AMT.16R';            Mandatory: 1; Content: 'AMT';                   Pattern: '^AMT$'),
+    (FullName: 'SETDET.AMT.19A';            Mandatory: 2; Content: ':4!c//[N]3!a15d';       Pattern: '^(:(SETT|ACRU)//)(N?)([A-Z]{3})([(\d+)?,(\d+)?]*)$'),
+    (FullName: 'SETDET.AMT.16S';            Mandatory: 1; Content: 'AMT';                   Pattern: '^AMT$'),
+    (FullName: 'SETDET.16S';                Mandatory: 1; Content: 'SETDET';                Pattern: '^SETDET$')
+    );
+
+  cSwiftFieldsFour541: array [0..25] of TSwiftFieldsRec =
+    (
+    // последовательность A
+    (FullName: 'GENL.16R';                  Mandatory: 1; Content: 'GENL';                  Pattern: '^GENL$'),
+    (FullName: 'GENL.20C.SEME';             Mandatory: 1; Content: ':4!c//16x';             Pattern: '^(:SEME//)[\w\-:\(\)\.,\+\?\/ ]{1,16}$'),
+    (FullName: 'GENL.23G';                  Mandatory: 1; Content: '4!c[/4!c]';             Pattern: '^(CANC|NEWM)(/(CODU|COPY|DUPL))?$'),
+    (FullName: 'GENL.16S';                  Mandatory: 1; Content: 'GENL';                  Pattern: '^GENL$'),
+    // последовательность B
+    (FullName: 'TRADDET.16R';               Mandatory: 1; Content: 'TRADDET';               Pattern: '^TRADDET$'),
+    (FullName: 'TRADDET.98A.SETT';          Mandatory: 1; Content: ':4!c//8!n';             Pattern: '^(:SETT//)\d{8}$'),
+    (FullName: 'TRADDET.98A.TRAD';          Mandatory: 1; Content: ':4!c//8!n';             Pattern: '^(:TRAD//)\d{8}$'),
+    (FullName: 'TRADDET.90A.DEAL';          Mandatory: 0; Content: ':4!c//4!c/15d';         Pattern: '^(:DEAL//)(DISC|PRCT|PREM|YIEL)(/[(\d+)?,(\d+)?]*)$'),
+    (FullName: 'TRADDET.90B.DEAL';          Mandatory: 0; Content: ':4!c//4!c/3!a15d';      Pattern: '^(:DEAL//)(ACTU|DISC|PREM)(/[A-Z]{3})([(\d+)?,(\d+)?]*)$'),
+    (FullName: 'TRADDET.16S';               Mandatory: 1; Content: 'TRADDET';               Pattern: '^TRADDET$'),
+    // последовательность C
+    (FullName: 'FIAC.16R';                  Mandatory: 0; Content: 'FIAC';                  Pattern: '^FIAC$'),
+    (FullName: 'FIAC.36B.SETT';             Mandatory: 1; Content: ':4!c//4!c/15d';         Pattern: '^(:SETT//)(AMOR|FAMT|UNIT)(/[(\d+)?,(\d+)?]*)$'),     // ^(?!(.{16,}))(\d)+(,){1}\d*$ - формат 15d
+    (FullName: 'FIAC.97A.SAFE';             Mandatory: 1; Content: ':4!c//35x';             Pattern: '^(:SAFE//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
+    (FullName: 'FIAC.97A';                  Mandatory: 2; Content: ':4!c//35x';             Pattern: '^(:(SAFE|CASH)//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
+    (FullName: 'FIAC.16S';                  Mandatory: 0; Content: 'FIAC';                  Pattern: '^FIAC$'),
+    // последовательность E
+    (FullName: 'SETDET.16R';                Mandatory: 1; Content: 'SETDET';                Pattern: '^SETDET$'),
+    (FullName: 'SETDET.22F.SETR';           Mandatory: 1; Content: ':4!c/[8c]/4!c';         Pattern: '^(:(SETR)/)([A-Z0-9]{1,8})?(/[A-Z]{4})$'),
+    (FullName: 'SETDET.22F.RTGS';           Mandatory: 0; Content: ':4!c/[8c]/4!c';         Pattern: '^(:(RTGS)/)([A-Z0-9]{1,8})?(/[A-Z]{4})$'),
+    // последовательность E1
+    (FullName: 'SETDET.SETPRTY.16R';        Mandatory: 1; Content: 'SETPRTY';               Pattern: '^SETPRTY$'),
+    (FullName: 'SETDET.SETPRTY.95P';        Mandatory: 2; Content: ':4!c//4!a2!a2!c[3!c]';  Pattern: '^(:(SELL|DEAG|BUYR|REAG|PSET)//)(([A-Z]{6})([A-Z0-9]{2})([A-Z0-9]{3})?)$'),
+    (FullName: 'SETDET.SETPRTY.97A';        Mandatory: 0; Content: ':4!c//35x';             Pattern: '^(:(SAFE|CASH)//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
+    (FullName: 'SETDET.SETPRTY.16S';        Mandatory: 1; Content: 'SETPRTY';               Pattern: '^SETPRTY$'),
+    // последовательность E3
+    (FullName: 'SETDET.AMT.16R';            Mandatory: 1; Content: 'AMT';                   Pattern: '^AMT$'),
+    (FullName: 'SETDET.AMT.19A.SETT';       Mandatory: 1; Content: ':4!c//[N]3!a15d';       Pattern: '^(:SETT//)(N?)([A-Z]{3})([(\d+)?,(\d+)?]*)$'),
+    (FullName: 'SETDET.AMT.16S';            Mandatory: 1; Content: 'AMT';                   Pattern: '^AMT$'),
+    (FullName: 'SETDET.16S';                Mandatory: 1; Content: 'SETDET';                Pattern: '^SETDET$')
+    );
+
 ////////////////////////////////////////////////////////////////////////////////
 implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -740,94 +830,6 @@ const
     (Left: '^(98A.TRADDET.(SETT|ESET))$';    Right: '^(98A.TRADDET.(SETT|ESET))$';    Explicit: True; Option: True),
     (Left: '^(36B.FIAC.(SETT|ESTT))$';       Right: '^(36B.FIAC.(SETT|ESTT))$';       Explicit: True; Option: True),
     (Left: '^(19A.SETDET.AMT.(SETT|ESTT))$'; Right: '^(19A.SETDET.AMT.(SETT|ESTT))$'; Explicit: True; Option: True)
-    );
-
-  cSwiftFieldsFour518: array [0..39] of TSwiftFieldsRec =
-    (
-    // последовательность A
-    (FullName: 'GENL.16R';                  Mandatory: 1; Content: 'GENL';                  Pattern: '^GENL$'),
-    (FullName: 'GENL.20C.SEME';             Mandatory: 1; Content: ':4!c//16x';             Pattern: '^(:SEME//)[\w\-:\(\)\.,\+\?\/ ]{1,16}$'),
-    (FullName: 'GENL.23G';                  Mandatory: 1; Content: '4!c[/4!c]';             Pattern: '^(CANC|NEWM)(/(CODU|COPY|DUPL))?$'),
-    (FullName: 'GENL.22F.TRTR';             Mandatory: 1; Content: ':4!c/[8c]/4!c';         Pattern: '^(:TRTR/)([A-Z0-9]{1,8})?(/(BASK|INDX|LIST|PROG|TRAD))$'),
-    (FullName: 'GENL.16S';                  Mandatory: 1; Content: 'GENL';                  Pattern: '^GENL$'),
-    // последовательность B
-    (FullName: 'CONFDET.16R';               Mandatory: 1; Content: 'CONFDET';               Pattern: '^CONFDET$'),
-    (FullName: 'CONFDET.98A.SETT';          Mandatory: 1; Content: ':4!c//8!n';             Pattern: '^(:SETT//)\d{8}$'),
-    (FullName: 'CONFDET.98A.TRAD';          Mandatory: 1; Content: ':4!c//8!n';             Pattern: '^(:TRAD//)\d{8}$'),
-    (FullName: 'CONFDET.90A.DEAL';          Mandatory: 1; Content: ':4!c//4!c/15d';         Pattern: '^(:DEAL//)([A-Z0-9]{4})(/[(\d+)?,(\d+)?]*)$'),
-    (FullName: 'CONFDET.99A.DAAC';          Mandatory: 0; Content: ':4!c//[N]3!n';          Pattern: '^(:DAAC//)N?\d{3}$'),
-    (FullName: 'CONFDET.22H.BUSE';          Mandatory: 1; Content: ':4!c//4!c';             Pattern: '^(:BUSE//)(BUYI|CROF|CROT|DIVR|IPOO|REDM|SELL|SUBS|SWIF|SWIT)$'),
-    (FullName: 'CONFDET.22H.PAYM';          Mandatory: 1; Content: ':4!c//4!c';             Pattern: '^(:PAYM//)(APMT|FREE)$'),
-    // последовательность B1
-    (FullName: 'CONFDET.CONFPRTY.16R';      Mandatory: 1; Content: 'CONFPRTY';              Pattern: '^CONFPRTY$'),
-    (FullName: 'CONFDET.CONFPRTY.95P';      Mandatory: 2; Content: ':4!c//4!a2!a2!c[3!c]';  Pattern: '^(:(BUYR|SELL)//)(([A-Z]{6})([A-Z0-9]{2})([A-Z0-9]{3})?)$'),
-    (FullName: 'CONFDET.CONFPRTY.97A.CASH'; Mandatory: 0; Content: ':4!c//35x';             Pattern: '^(:CASH//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
-    (FullName: 'CONFDET.CONFPRTY.22F.TRCA'; Mandatory: 0; Content: ':4!c/[8c]/4!c';         Pattern: '^(:TRCA/)([A-Z0-9]{1,8})?(/(AGEN|BAGN|CAGN|CPRN|INFI|MKTM|MLTF|OAGNPRAG|PRIN|RMKT|SINT|TAGT))$'),
-    (FullName: 'CONFDET.CONFPRTY.16S';      Mandatory: 1; Content: 'CONFPRTY';              Pattern: '^CONFPRTY$'),
-    (FullName: 'CONFDET.36B.CONF';          Mandatory: 1; Content: ':4!c//4!c/15d';         Pattern: '^(:CONF//)([A-Z0-9]{4})(/[(\d+)?,(\d+)?]*)$'),
-    // последовательность B2
-    (FullName: 'CONFDET.FIA.16R';           Mandatory: 0; Content: 'FIA';                   Pattern: '^FIA$'),
-    (FullName: 'CONFDET.FIA.12A';           Mandatory: 0; Content: ':4!c/[8c]/30x';         Pattern: '^(:(CLAS|OPST|OPTI)/)([A-Z0-9]{1,8})?(/[\w\-:\(\)\.,\+\?\/ ]{1,30})$'),
-    (FullName: 'CONFDET.FIA.11A';           Mandatory: 0; Content: ':4!c//3!a';             Pattern: '^(:DENO//)([A-Z]{3})$'),
-    (FullName: 'CONFDET.FIA.98A.MATU';      Mandatory: 0; Content: ':4!c//8!n';             Pattern: '^(:MATU//)(\d{8})$'),
-    (FullName: 'CONFDET.FIA.92A.INTR';      Mandatory: 0; Content: ':4!c//[N]15d';          Pattern: '^(:INTR//)N?([(\d+)?,(\d+)?]*)$'),
-    (FullName: 'CONFDET.FIA.70E.FIAN';      Mandatory: 0; Content: ':4!c//10*35x';          Pattern: '\A(:FIAN//)(([\w\-:\(\)\.,\+\?\/ ]{1,35}(\r\n)?))(^([\w\-:\(\)\.,\+\?\/ ]{1,35}(\r\n)?)){0,9}\Z'),
-    (FullName: 'CONFDET.FIA.16S';           Mandatory: 0; Content: 'FIA';                   Pattern: '^FIA$'),
-    (FullName: 'CONFDET.70E.TRPO';          Mandatory: 0; Content: ':4!c//10*35x';          Pattern: '^(:TRPO//)([\w\-:\(\)\.,\+\?\/ ]{0,35})(\r\n)?(([\w\-:\(\)\.,\+\?\/ ]{0,35}(\r\n)?){0,9})$'),
-    (FullName: 'CONFDET.16S';               Mandatory: 1; Content: 'CONFDET';               Pattern: '^CONFDET$'),
-    // последовательность C
-    (FullName: 'SETDET.16R';                Mandatory: 1; Content: 'SETDET';                Pattern: '^SETDET$'),
-    (FullName: 'SETDET.22F.SETR';           Mandatory: 1; Content: ':4!c/[8c]/4!c';         Pattern: '^(:(SETR|RTGS)/)([A-Z0-9]{1,8})?(/[A-Z]{4})$'),
-    // последовательность C1
-    (FullName: 'SETDET.SETPRTY.16R';        Mandatory: 1; Content: 'SETPRTY';               Pattern: '^SETPRTY$'),
-    (FullName: 'SETDET.SETPRTY.95P';        Mandatory: 2; Content: ':4!c//4!a2!a2!c[3!c]';  Pattern: '^(:(SELL|DEAG|BUYR|REAG)//)(([A-Z]{6})([A-Z0-9]{2})([A-Z0-9]{3})?)$'),
-    (FullName: 'SETDET.SETPRTY.16S';        Mandatory: 1; Content: 'SETPRTY';               Pattern: '^SETPRTY$'),
-    // последовательность C2
-    (FullName: 'SETDET.CSHPRTY.16R';        Mandatory: 1; Content: 'CSHPRTY';               Pattern: '^CSHPRTY$'),
-    (FullName: 'SETDET.CSHPRTY.95P.ACCW';   Mandatory: 1; Content: ':4!c//4!a2!a2!c[3!c]';  Pattern: '^(:ACCW//)(([A-Z]{6})([A-Z0-9]{2})([A-Z0-9]{3})?)$'),
-    (FullName: 'SETDET.CSHPRTY.97A.CASH';   Mandatory: 0; Content: ':4!c//35x';             Pattern: '^(:CASH//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
-    (FullName: 'SETDET.CSHPRTY.16S';        Mandatory: 1; Content: 'CSHPRTY';               Pattern: '^CSHPRTY$'),
-    // последовательность C3
-    (FullName: 'SETDET.AMT.16R';            Mandatory: 1; Content: 'AMT';                   Pattern: '^AMT$'),
-    (FullName: 'SETDET.AMT.19A';            Mandatory: 2; Content: ':4!c//[N]3!a15d';       Pattern: '^(:(SETT|ACRU)//)(N?)([A-Z]{3})([(\d+)?,(\d+)?]*)$'),
-    (FullName: 'SETDET.AMT.16S';            Mandatory: 1; Content: 'AMT';                   Pattern: '^AMT$'),
-    (FullName: 'SETDET.16S';                Mandatory: 1; Content: 'SETDET';                Pattern: '^SETDET$')
-    );
-
-  cSwiftFieldsFour541: array [0..25] of TSwiftFieldsRec =
-    (
-    // последовательность A
-    (FullName: 'GENL.16R';                  Mandatory: 1; Content: 'GENL';                  Pattern: '^GENL$'),
-    (FullName: 'GENL.20C.SEME';             Mandatory: 1; Content: ':4!c//16x';             Pattern: '^(:SEME//)[\w\-:\(\)\.,\+\?\/ ]{1,16}$'),
-    (FullName: 'GENL.23G';                  Mandatory: 1; Content: '4!c[/4!c]';             Pattern: '^(CANC|NEWM)(/(CODU|COPY|DUPL))?$'),
-    (FullName: 'GENL.16S';                  Mandatory: 1; Content: 'GENL';                  Pattern: '^GENL$'),
-    // последовательность B
-    (FullName: 'TRADDET.16R';               Mandatory: 1; Content: 'TRADDET';               Pattern: '^TRADDET$'),
-    (FullName: 'TRADDET.98A.SETT';          Mandatory: 1; Content: ':4!c//8!n';             Pattern: '^(:SETT//)\d{8}$'),
-    (FullName: 'TRADDET.98A.TRAD';          Mandatory: 1; Content: ':4!c//8!n';             Pattern: '^(:TRAD//)\d{8}$'),
-    (FullName: 'TRADDET.90A.DEAL';          Mandatory: 0; Content: ':4!c//4!c/15d';         Pattern: '^(:DEAL//)(DISC|PRCT|PREM|YIEL)(/[(\d+)?,(\d+)?]*)$'),
-    (FullName: 'TRADDET.90B.DEAL';          Mandatory: 0; Content: ':4!c//4!c/3!a15d';      Pattern: '^(:DEAL//)(ACTU|DISC|PREM)(/[A-Z]{3})([(\d+)?,(\d+)?]*)$'),
-    (FullName: 'TRADDET.16S';               Mandatory: 1; Content: 'TRADDET';               Pattern: '^TRADDET$'),
-    // последовательность C
-    (FullName: 'FIAC.16R';                  Mandatory: 0; Content: 'FIAC';                  Pattern: '^FIAC$'),
-    (FullName: 'FIAC.36B.SETT';             Mandatory: 1; Content: ':4!c//4!c/15d';         Pattern: '^(:SETT//)(AMOR|FAMT|UNIT)(/[(\d+)?,(\d+)?]*)$'),     // ^(?!(.{16,}))(\d)+(,){1}\d*$ - формат 15d
-    (FullName: 'FIAC.97A.SAFE';             Mandatory: 1; Content: ':4!c//35x';             Pattern: '^(:SAFE//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
-    (FullName: 'FIAC.97A';                  Mandatory: 2; Content: ':4!c//35x';             Pattern: '^(:(SAFE|CASH)//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
-    (FullName: 'FIAC.16S';                  Mandatory: 0; Content: 'FIAC';                  Pattern: '^FIAC$'),
-    // последовательность E
-    (FullName: 'SETDET.16R';                Mandatory: 1; Content: 'SETDET';                Pattern: '^SETDET$'),
-    (FullName: 'SETDET.22F.SETR';           Mandatory: 1; Content: ':4!c/[8c]/4!c';         Pattern: '^(:(SETR)/)([A-Z0-9]{1,8})?(/[A-Z]{4})$'),
-    (FullName: 'SETDET.22F.RTGS';           Mandatory: 0; Content: ':4!c/[8c]/4!c';         Pattern: '^(:(RTGS)/)([A-Z0-9]{1,8})?(/[A-Z]{4})$'),
-    // последовательность E1
-    (FullName: 'SETDET.SETPRTY.16R';        Mandatory: 1; Content: 'SETPRTY';               Pattern: '^SETPRTY$'),
-    (FullName: 'SETDET.SETPRTY.95P';        Mandatory: 2; Content: ':4!c//4!a2!a2!c[3!c]';  Pattern: '^(:(SELL|DEAG|BUYR|REAG|PSET)//)(([A-Z]{6})([A-Z0-9]{2})([A-Z0-9]{3})?)$'),
-    (FullName: 'SETDET.SETPRTY.97A';        Mandatory: 0; Content: ':4!c//35x';             Pattern: '^(:(SAFE|CASH)//)([\w\-:\(\)\.,\+\?\/ ]{1,35})$'),
-    (FullName: 'SETDET.SETPRTY.16S';        Mandatory: 1; Content: 'SETPRTY';               Pattern: '^SETPRTY$'),
-    // последовательность E3
-    (FullName: 'SETDET.AMT.16R';            Mandatory: 1; Content: 'AMT';                   Pattern: '^AMT$'),
-    (FullName: 'SETDET.AMT.19A.SETT';       Mandatory: 1; Content: ':4!c//[N]3!a15d';       Pattern: '^(:SETT//)(N?)([A-Z]{3})([(\d+)?,(\d+)?]*)$'),
-    (FullName: 'SETDET.AMT.16S';            Mandatory: 1; Content: 'AMT';                   Pattern: '^AMT$'),
-    (FullName: 'SETDET.16S';                Mandatory: 1; Content: 'SETDET';                Pattern: '^SETDET$')
     );
 
 type
@@ -2821,6 +2823,30 @@ begin
 
     eTmpTag.FullName := eTagKey;
     FSwiftDict.AddOrSetValue( eTagKey, eTmpTag );
+  end;
+end;
+
+function TSwiftBlock4.GetFieldByEx(const aFullName: string): TSwiftField;
+var
+  eKey, eFindKey: string;
+  eTag: TSwiftTag;
+begin
+  Result := nil;
+  eTag := nil;
+  FillSwiftDict;
+  if FSwiftDict.Count = 0 then Exit;
+
+  // поиск ключа по регулярному выражению
+  eFindKey := '';
+  for eKey in FSwiftDict.Keys do begin
+    if TRegEx.IsMatch(eKey, aFullName) then begin
+      eFindKey := eKey;
+      Break;
+    end;
+  end;
+  if eFindKey > '' then begin
+    if (FSwiftDict.TryGetValue(eFindKey, eTag)) and (Assigned(eTag)) then
+      Result := TSwiftField.Create(FMessage, eTag);
   end;
 end;
 
