@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ExtCtrls, VirtualTrees, SWIFT_UMsgFormat, SWIFT_UUtils,
-  Menus;
+  Menus, TB97Ctls, TB97, TB97Tlbr;
 
 const
   cSequenceTags: array [0..10] of string = (
@@ -43,6 +43,12 @@ type
     miAddSeq: TMenuItem;
     miN2: TMenuItem;
     miAddSubSeq: TMenuItem;
+    dck97LeftDock: TDock97;
+    tlbr: TToolbar97;
+    tbtnAddSeq: TToolbarButton97;
+    tbtnDelField: TToolbarButton97;
+    tbtnAddField: TToolbarButton97;
+    tbtnAddSubSeq: TToolbarButton97;
     procedure miAddFieldClick(Sender: TObject);
     procedure miAddSeqClick(Sender: TObject);
     procedure miAddSubSeqClick(Sender: TObject);
@@ -63,6 +69,7 @@ type
       TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
       CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
     procedure mmoTagValueChange(Sender: TObject);
+    procedure VSTExit(Sender: TObject);
   private
     { Swift сообщение }
     FSwiftMessage: TSwiftMessage;
@@ -79,12 +86,14 @@ type
     procedure BuildTree(aBlock: TSwiftBlock4);
     function GetNodeData(const ANode: PVirtualNode): PSwiftData;
     function BuildMessageText: string;
-    function AddField(): Boolean;
+    function AddField(aNode: PVirtualNode; aFieldType: Integer): PVirtualNode;
+
+    function Allowed: Boolean;
 
   public
     property MsgType: Integer read FMsgType write FMsgType;
     property MessageText: string read GetMsgText write SetMsgText;
-    property ReadOnlyMsg: Boolean write FReadOnlyMsg default True read FReadOnlyMsg;
+    property ReadOnlyMsg: Boolean write FReadOnlyMsg default True;
   end;
 
 implementation
@@ -136,14 +145,15 @@ var
   OldValue: string;
 begin
   Data := GetNodeData(VST.FocusedNode);
-//  if SameText(TCustomEdit(Sender).Text, Data.TagValue) then Exit;
 
 // ¬алидаци€
-  IsValid := False;
+  IsValid := True;
   if (FMsgType div 100 = 5) then
     SwiftField := FSwiftMessage.Block4.GetFieldByEx(Data.TagFullName)
   else
     SwiftField := FSwiftMessage.Block4.GetFieldBy(Data.TagName);
+
+  if not Assigned(SwiftField) then Exit;
 
   if Assigned(SwiftField) then begin
     OldValue := SwiftField.Tag.Value;
@@ -253,30 +263,105 @@ begin
   // ќтправитель и ѕолучатель
   edtSender.Text   := FSwiftMessage.Block1.Sender;
   edtReciever.Text := FSwiftMessage.Block2.Reciever;
+  edtReciever.Enabled := not FReadOnlyMsg;
 
   // строим дерево полей
   BuildTree(FSwiftMessage.Block4);
   VST.FullExpand(nil);
 end;
 
-function TfSwiftView.AddField: Boolean;
+function TfSwiftView.AddField(aNode: PVirtualNode; aFieldType: Integer): PVirtualNode;
 var
   FDlg: TFDlgAddField;
   Data: PSwiftData;
+  Node, SeqNode, SubNode: PVirtualNode;
+  FullName, Qualifier: string;
 begin
   // ƒобавление пол€
+  Result := nil;
   FDlg := TFDlgAddField.Create(Owner);
-  FullName := '';
   try
     with FDlg do begin
-      if ShowModal = mrOk then begin
-        if edtFieldName.Text = '' then
-          raise Exception.Create('Ќаименование пол€ не должно быть пустым!');
+      ActiveControl := edtTagName;
+      if (aFieldType in [0, 1]) and (FMsgType div 100 = 5) then begin
+        edtTagName.Text    := '16R';
+        edtTagName.Enabled := False;
+        ActiveControl := edtTagValue;
+      end;
 
-        Data^.TagName     := edtFieldName.Text;
-        Data^.TagFullName := FullName;
-        Data^.Editable    := True;
-        VST.AddChild(VST.FocusedNode, Data);
+      if ShowModal = mrOk then begin
+        if edtTagName.Text = '' then
+          raise Exception.Create('Ќаименование пол€ не должно быть пустым!');
+        if (aFieldType in [0, 1]) and (edtTagValue.Text = '') then
+          raise Exception.Create('«начение пол€ дл€ (под)последовательности не должно быть пустым!');
+
+        // последовательность
+        if aFieldType in [0, 1] then begin
+          // проверка
+          if not MatchText(edtTagValue.Text,
+            ['GENL','LINK','CONFDET','CONFPRTY','FIA','SETDET','SETPRTY',
+             'CSHPRTY','AMT','OTHRPRTY','REPO','TRADDET','FIAC','BREAK']) then
+            raise Exception.CreateFmt('%s - Ќеверное наименование (под)последовательности!!', [ edtTagValue.Text ]);
+          // последовательность добавл€ем последней в корень
+          if aFieldType = 0 then
+            Result := VST.InsertNode(aNode, amAddChildLast);
+          // подпоследовательность добавл€ем перед последним полем
+          if aFieldType = 1 then
+            Result := VST.InsertNode(aNode.LastChild, amInsertBefore);
+          Data := GetNodeData(Result);
+          if Assigned(Data) then begin
+            Data^.TagName     := edtTagName.Text;
+            Data^.TagValue    := UpperCase(edtTagValue.Text);
+            Data^.Editable    := False;
+            if aFieldType = 0 then
+              Data^.TagFullName := Format('%s.%s', [Data^.TagValue, Data^.TagName]);
+            if aFieldType = 1 then
+              Data^.TagFullName := Format('%s.%s.%s', [
+                GetNodeData(aNode).TagValue, Data^.TagValue, Data^.TagName]);
+          end;
+          // ƒл€ последовательности необходимо закрытие
+          Node :=  VST.InsertNode(Result, amAddChildLast);
+          Data := GetNodeData(Node);
+          if Assigned(Data) then begin
+            Data^.TagName     := '16S';
+            Data^.TagValue    := UpperCase(edtTagValue.Text);
+            Data^.Editable    := False;
+            if aFieldType = 0 then
+              Data^.TagFullName := Format('%s.%s', [Data^.TagValue, Data^.TagName]);
+            if aFieldType = 1 then
+              Data^.TagFullName := Format('%s.%s.%s', [
+                GetNodeData(aNode).TagValue, Data^.TagValue, Data^.TagName]);
+          end;
+        end;
+
+        // поле
+        if aFieldType = 2 then begin
+          if (Length(edtTagName.Text) > 3) or
+             (not TRegEx.IsMatch(edtTagName.Text, '\A(\d{1,2})([A-Z]{1})?\Z'))  then
+            raise Exception.CreateFmt('%s - Ќеверное наименование пол€!', [ edtTagName.Text ]);
+          FullName := '';
+          // поле добавл€ем перед последним узлом
+          Result := VST.InsertNode(aNode.LastChild, amInsertBefore);
+          Data := GetNodeData(Result);
+          if Assigned(Data) then begin
+            Data^.TagName     := edtTagName.Text;
+            Data^.TagValue    := edtTagValue.Text;
+            SeqNode := aNode.Parent;
+            SubNode := aNode;
+            Qualifier := GetBetweenEx(':', '/', edtTagValue.Text);
+            if (Assigned(SeqNode)) and (SeqNode <> VST.RootNode) then
+              FullName := GetNodeData(SeqNode).TagValue;
+            FullName := FullName + '.' + GetNodeData(aNode).TagValue;
+            FullName := FullName + '.' + edtTagName.Text;
+            if Qualifier > '' then
+              FullName := FullName + '.' + Qualifier;
+            Data^.TagFullName := FullName;
+            Data^.Editable    := True;
+          end;
+        end;
+        // Tag = :<им€ пол€>:<значение пол€>
+        FSwiftMessage.Block4.AddTag(TSwiftTag.Create(
+          Format(':%s:%s', [Data^.TagName, Data^.TagValue])));
       end;
     end;
   finally
@@ -288,14 +373,22 @@ function TfSwiftView.BuildMessageText: string;
 var
   CurNode: PVirtualNode;
   eBuffer: TSWIFTBuilder;
-  sHeader: string;
+  sHeader, eReciever: string;
   Data: PSwiftData;
+
 begin
   Result := '';
   eBuffer := TSWIFTBuilder.Create();
   try
-    sHeader := Format('{1:%s}{2:%s}', [FSwiftMessage.Block1.Text,
-                                       FSwiftMessage.Block2.Text]);
+    sHeader := Format('{1:%s}', [FSwiftMessage.Block1.Text]);
+    eReciever := edtReciever.Text;
+    eReciever := Format('{2:I%d%sX%sN}',
+                  [FMsgType,
+                   Copy(eReciever, 1, 8),
+                   StrRightPad(Copy(eReciever, 9, 3), 3, 'X')]);
+
+    sHeader := sHeader + eReciever;
+
     sHeader := sHeader + Format('{3:%s}', [FSwiftMessage.Blocks[2].Text]);
     // строим текст блока 4
     eBuffer.AppendLine(sHeader + '{4:');
@@ -318,7 +411,7 @@ var
   eTmpTag: TSwiftTag;
   I: Integer;
   eNode, eSeqNode, eSubNode, eRoot: PVirtualNode;
-  eIsEditable: Boolean;
+  eIsEditable, IsSequence: Boolean;
   eData: PSwiftData;
 
   function IsEditable(aName: string): Boolean;
@@ -365,7 +458,7 @@ begin
     eSubNode := nil;
     for I := 0 to aBlock.Count - 1 do begin
       eTmpTag := aBlock.Tags[ I ];
-
+      IsSequence := False;
       // последовательность в корень
       if MatchText(eTmpTag.Name, cSequenceTags) then begin
         // начало последовательности
@@ -389,6 +482,7 @@ begin
             eSeqNode := nil;
           end;
         end;
+        IsSequence := True;
       end else begin
 
         if (eSubNode <> nil) then begin
@@ -402,7 +496,11 @@ begin
       eData^.TagName     := eTmpTag.Name;
       eData^.TagValue    := eTmpTag.Value;
       eData^.TagFullName := eTmpTag.FullName;
+      {$IFDEF DEBUG}
+      eData^.Editable    := (not IsSequence);
+      {$ELSE}
       eData^.Editable    := (not FReadOnlyMsg) and (IsEditable(eTmpTag.FullName));
+      {$ENDIF}
       { TODO: «амена после перехода на Ѕƒ }
       case FMsgType of
       518:     eData^.Content := GetContentFields(cSwiftFieldsFour518, eTmpTag.FullName);
@@ -413,27 +511,72 @@ begin
 
       eData^.HasDelete   := False;
     end;
+    VST.FocusedNode := VST.RootNode.FirstChild;
+  end;
+end;
+
+function TfSwiftView.Allowed: Boolean;
+begin
+  Result := True;
+  if not Assigned(VST.FocusedNode) then begin
+    MessageDlg('¬ы должны установить фокус на запись!', mtInformation, [mbOK], 0);
+    Result := False;
   end;
 end;
 
 procedure TfSwiftView.miAddFieldClick(Sender: TObject);
+var
+  NewNode: PVirtualNode;
 begin
-  //
+  if not Allowed then Exit;
+  if Assigned(VST.FocusedNode) then begin
+    if GetNodeData(VST.FocusedNode).TagName = '16R' then
+      NewNode := AddField(VST.FocusedNode, 2)
+    else
+      NewNode := AddField(VST.FocusedNode.Parent, 2);
+  end;
+  if Assigned(NewNode) then
+    VST.FocusedNode := NewNode;
 end;
 
 procedure TfSwiftView.miAddSeqClick(Sender: TObject);
+var
+  NewNode: PVirtualNode;
 begin
-  //
+  if not Allowed then Exit;
+  NewNode := AddField(VST.RootNode, 0);
+  if Assigned(NewNode) then begin
+    VST.FocusedNode := NewNode;
+    VST.FullExpand(NewNode);
+  end;
 end;
 
 procedure TfSwiftView.miAddSubSeqClick(Sender: TObject);
+var
+  NewNode: PVirtualNode;
 begin
-  //
+  if not Allowed then Exit;
+  if (VST.FocusedNode.Parent <> VST.RootNode) then
+    NewNode := AddField(VST.FocusedNode.Parent, 1);
+  if Assigned(NewNode) then begin
+    VST.FocusedNode := NewNode;
+    VST.FullExpand(NewNode);
+  end;
 end;
 
 procedure TfSwiftView.miDelFieldClick(Sender: TObject);
+var
+  ConfirmMsg: string;
 begin
+  if not Allowed then Exit;
   // ”даление пол€
+  if MessageDlg('¬ы действительно хотите удалить запись?', mtConfirmation, [mbYes, mbNo], 0) = mrYes then begin
+    if (GetNodeData(VST.FocusedNode).TagName = '16R') then begin
+      if MessageDlg('Ѕудут удалены все дочерние записи. —огласны?', mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+        VST.DeleteChildren(VST.FocusedNode);
+    end;
+    VST.DeleteNode(VST.FocusedNode);
+  end;
 end;
 
 procedure TfSwiftView.SetMsgText(aValue: string);
@@ -453,16 +596,30 @@ begin
   if FocusedNode = nil then begin
     PnlEditor.Visible  := False;
   end else begin
+
+    // ƒоступность кнопок и пунктов popup меню
+    if not FReadOnlyMsg then begin
+      tbtnAddSeq.Enabled    := True;
+      tbtnAddSubSeq.Enabled := True;
+      tbtnAddField.Enabled  := True;
+      tbtnDelField.Enabled  := True;
+      miAddSeq.Enabled      := True;
+      miAddSubSeq.Enabled   := True;
+      miAddField.Enabled    := True;
+      miDelField.Enabled    := True;
+    end;
+
     Data := GetNodeData(FocusedNode);
     PnlEditor.Visible  := True;
     lblTagName.Caption := Data.TagName;
     lblTagName.Enabled := True;
-    miDelField.Enabled := Data.HasDelete;
+    pnlEditor.Height   := 30;
     if Data.MultiLine then begin
       mmoTagValue.Text     := Data.TagValue;
       mmoTagValue.Visible  := True;
       edtTagValue.Visible  := False;
       mmoTagValue.Enabled  := Data.Editable;
+      pnlEditor.Height     := 100;
     end else begin
       edtTagValue.Text     := Data.TagValue;
       mmoTagValue.Visible  := False;
@@ -470,6 +627,18 @@ begin
       edtTagValue.Enabled  := Data.Editable;
     end;
   end;
+end;
+
+procedure TfSwiftView.VSTExit(Sender: TObject);
+begin
+  tbtnAddSeq.Enabled    := False;
+  tbtnAddSubSeq.Enabled := False;
+  tbtnAddField.Enabled  := False;
+  tbtnDelField.Enabled  := False;
+  miAddSeq.Enabled      := False;
+  miAddSubSeq.Enabled   := False;
+  miAddField.Enabled    := False;
+  miDelField.Enabled    := False;
 end;
 
 end.
