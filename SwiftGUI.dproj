@@ -53,9 +53,12 @@
 			<DCCReference Include="SWG_FMain.pas">
 				<Form>fMain</Form>
 			</DCCReference>
-			<DCCReference Include="Swift_UViewer.pas">
+			<DCCReference Include="SWIFT_FViewer.pas">
 				<Form>fSwiftView</Form>
 				<DesignClass>TFrame</DesignClass>
+			</DCCReference>
+			<DCCReference Include="SWIFT_FDlgAddField.pas">
+				<Form>FDlgAddField</Form>
 			</DCCReference>
 			<BuildConfiguration Include="Release">
 				<Key>Cfg_2</Key>

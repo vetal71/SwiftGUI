@@ -1,21 +1,24 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899/12/30 00:00:00.000.889,=H:\DelphiProjects\SwiftGUI\SWIFT_UMsgFormat.pas</Transaction>
-    <Transaction>1899/12/30 00:00:00.000.612,C:\Users\Vitaliy\Documents\RAD Studio\Projects\Unit1.dfm=H:\DelphiProjects\SwiftGUI\SWG_FMain.dfm</Transaction>
-    <Transaction>1899/12/30 00:00:00.000.710,=H:\DelphiProjects\SwiftGUI\SWIFT_UPanel.pas</Transaction>
-    <Transaction>1899/12/30 00:00:00.000.726,=H:\DelphiProjects\SwiftGUI\SWIFT_UTypes.pas</Transaction>
-    <Transaction>1899/12/30 00:00:00.000.533,=H:\DelphiProjects\SwiftGUI\SWIFT_UUtils.pas</Transaction>
-    <Transaction>1899/12/30 00:00:00.000.537,C:\Users\Vitaliy\Documents\RAD Studio\Projects\Project1.dproj=H:\DelphiProjects\SwiftGUI\SwiftGUI.dproj</Transaction>
-    <Transaction>1899/12/30 00:00:00.000.612,C:\Users\Vitaliy\Documents\RAD Studio\Projects\Unit1.pas=H:\DelphiProjects\SwiftGUI\SWG_FMain.pas</Transaction>
-    <Transaction>1899/12/30 00:00:00.000.156,=C:\Users\Vitaliy\Documents\RAD Studio\Projects\Unit1.pas</Transaction>
-    <Transaction>2016/07/24 12:28:10.572,H:\DelphiProjects\SwiftGUI\SWIFT_UUtils.pas=</Transaction>
-    <Transaction>2016/07/24 12:28:18.024,H:\DelphiProjects\SwiftGUI\SWIFT_UMsgFormat.pas=</Transaction>
-    <Transaction>2016/07/24 17:41:18.174,=H:\DelphiProjects\SwiftGUI\Unit1.pas</Transaction>
-    <Transaction>2016/07/24 17:43:02.530,H:\DelphiProjects\SwiftGUI\SWIFT_UPanel__.pas=H:\DelphiProjects\SwiftGUI\SWIFT_UPanel.pas</Transaction>
-    <Transaction>2016/07/24 18:43:32.497,H:\DelphiProjects\SwiftGUI\Swift_UViewer.dfm=H:\DelphiProjects\SwiftGUI\Unit1.dfm</Transaction>
-    <Transaction>2016/07/24 18:43:32.497,H:\DelphiProjects\SwiftGUI\Swift_UViewer.pas=H:\DelphiProjects\SwiftGUI\Unit1.pas</Transaction>
-    <Transaction>2016/07/24 19:16:50.707,H:\DelphiProjects\SwiftGUI\SWIFT_UPanel__.pas=</Transaction>
-    <Transaction>2016/07/24 19:16:55.952,H:\DelphiProjects\SwiftGUI\SWIFT_UTypes.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.710,=H:\DelphiProjects\SwiftGUI\SWIFT_UPanel.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.612,H:\DelphiProjects\SwiftGUI\SWG_FMain.dfm=C:\Users\Vitaliy\Documents\RAD Studio\Projects\Unit1.dfm</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.533,=H:\DelphiProjects\SwiftGUI\SWIFT_UUtils.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.156,=C:\Users\Vitaliy\Documents\RAD Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.537,H:\DelphiProjects\SwiftGUI\SwiftGUI.dproj=C:\Users\Vitaliy\Documents\RAD Studio\Projects\Project1.dproj</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.889,=H:\DelphiProjects\SwiftGUI\SWIFT_UMsgFormat.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.726,=H:\DelphiProjects\SwiftGUI\SWIFT_UTypes.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.612,H:\DelphiProjects\SwiftGUI\SWG_FMain.pas=C:\Users\Vitaliy\Documents\RAD Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2016.07.24 12:28:10.000.572,H:\DelphiProjects\SwiftGUI\SWIFT_UUtils.pas=</Transaction>
+    <Transaction>2016.07.24 12:28:18.000.024,H:\DelphiProjects\SwiftGUI\SWIFT_UMsgFormat.pas=</Transaction>
+    <Transaction>2016.07.24 17:41:18.000.174,=H:\DelphiProjects\SwiftGUI\Unit1.pas</Transaction>
+    <Transaction>2016.07.24 17:43:02.000.530,H:\DelphiProjects\SwiftGUI\SWIFT_UPanel.pas=H:\DelphiProjects\SwiftGUI\SWIFT_UPanel__.pas</Transaction>
+    <Transaction>2016.07.24 18:43:32.000.497,H:\DelphiProjects\SwiftGUI\Unit1.pas=H:\DelphiProjects\SwiftGUI\Swift_UViewer.pas</Transaction>
+    <Transaction>2016.07.24 18:43:32.000.497,H:\DelphiProjects\SwiftGUI\Unit1.dfm=H:\DelphiProjects\SwiftGUI\Swift_UViewer.dfm</Transaction>
+    <Transaction>2016.07.24 19:16:50.000.707,H:\DelphiProjects\SwiftGUI\SWIFT_UPanel__.pas=</Transaction>
+    <Transaction>2016.07.24 19:16:55.000.952,H:\DelphiProjects\SwiftGUI\SWIFT_UTypes.pas=</Transaction>
+    <Transaction>2016.07.25 21:38:40.484,H:\DelphiProjects\SwiftGUI\Swift_UViewer.pas=</Transaction>
+    <Transaction>2016.07.25 21:38:49.610,=H:\DelphiProjects\SwiftGUI\SWIFT_FViewer.pas</Transaction>
+    <Transaction>2016.07.25 21:43:05.110,=H:\DelphiProjects\SwiftGUI\SWIFT_FDlgAddField.pas</Transaction>
   </Transactions>
 </BorlandProject>
